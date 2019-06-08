@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+
+
+    <declare-styleable name="CaptureButton">
+        <attr name="duration" format="integer"/>
+        <attr name="backgroudcolor" format="color"/>
+        <attr name="innercirclecolor" format="color"/>
+        <attr name="progresscolor" format="color"/>
+        <attr name="progresswidth" format="dimension"/>
+    </declare-styleable>
+</resources>
