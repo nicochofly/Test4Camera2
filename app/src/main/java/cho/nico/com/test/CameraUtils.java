@@ -80,11 +80,6 @@ public class CameraUtils {
 
             if (isRecorder) {
                 mPreviewSize = camera.getParameters().getPreviewSize();
-//            if (nativeEncoder != null) {
-//                nativeEncoder.onPreviewFrame(data, mPreviewSize.width, mPreviewSize.height);
-//            }
-//            Log.e(TAG,"data");
-
                 FaceServer.getInstance().detectNv21(data, context, new FaceDetectCallback() {
                     @Override
                     public void detectFinish(int size, long times) {
@@ -99,9 +94,6 @@ public class CameraUtils {
             }
         }
     };
-
-
-    NativeEncoder nativeEncoder;
 
 
     private SurfaceHolder.Callback surfaceCallback = new SurfaceHolder.Callback() {
@@ -138,7 +130,6 @@ public class CameraUtils {
         screenHeight = displayMetrics.heightPixels;
         resizeCallback = resize;
 
-        nativeEncoder = new NativeEncoder();
     }
 
 
@@ -371,6 +362,33 @@ public class CameraUtils {
         }
     }
 
+    public void deleteVideo() {
+
+        File file = new File(basePath + File.separator + "videodetect" + File.separator + currentVideoName + ".mp4");
+        if (file.exists()) {
+            file.delete();
+        }
+
+
+        File videoDir = new File(basePath + File.separator + "videodetect" + File.separator + currentVideoName);
+        if (videoDir.exists()) {
+            deleteDirWihtFile(videoDir);
+        }
+    }
+
+
+    public void deleteDirWihtFile(File dir) {
+        if (dir == null || !dir.exists() || !dir.isDirectory())
+            return;
+        for (File file : dir.listFiles()) {
+            if (file.isFile())
+                file.delete(); // 删除所有文件
+            else if (file.isDirectory())
+                deleteDirWihtFile(file); // 递规的方式删除文件夹
+        }
+        dir.delete();// 删除目录本身
+    }
+
 //    @Override
 //    public void onPictureTaken(byte[] data, Camera camera) {
 //        String path = processImg(defaultCamera == Camera.CameraInfo.CAMERA_FACING_BACK ? true : false, data);
@@ -506,6 +524,8 @@ public class CameraUtils {
     }
 
 
+    private String currentVideoName;
+
     //启动录像
     public void startRecord() {
 //        camera.setPreviewCallback(null);
@@ -588,8 +608,9 @@ public class CameraUtils {
 //            mediaRecorder.setVideoEncodingBitRate(MEDIA_QUALITY_MIDDLE);
 //        }
         mediaRecorder.setPreviewDisplay(surfaceHolder.getSurface());
-        String videoFileName = "video_" + System.currentTimeMillis() + ".mp4";
-        String saveVideoPath = basePath + File.separator + "video";
+        currentVideoName = "video_" + System.currentTimeMillis();
+        String videoFileName = currentVideoName + ".mp4";
+        String saveVideoPath = basePath + File.separator + "videodetect";
 
         File file = new File(saveVideoPath);
         if (!file.exists()) {
@@ -638,9 +659,13 @@ public class CameraUtils {
             }
         }
 //        camera.stopPreview();
-
 //        resizeCallback.playVideo();
     }
 
     public static final int MEDIA_QUALITY_MIDDLE = 16 * 100000;
+
+
+    public String getCurrentVideoName() {
+        return currentVideoName;
+    }
 }

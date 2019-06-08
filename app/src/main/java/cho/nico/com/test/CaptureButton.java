@@ -6,13 +6,11 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -30,6 +28,10 @@ public class CaptureButton extends View {
     private int innercirclecolor = 0xFF00DBDB;
     private int progresscolor = 0xffff4060;
 
+    //点击控件的时间
+    long downMillus = 0;
+
+    Handler handler = new Handler();
 
     private int viewWidth, viewHeight;
     private int centerX, centerY;
@@ -47,7 +49,11 @@ public class CaptureButton extends View {
     private int inscale = 30;
     private int progresswidth = 10;
 
+    //外环和内环的大小
+    float out, in, origin;
 
+    //
+    float progressAngle = 0;
     /**
      * 0 拍照
      * 1 录影
@@ -75,11 +81,11 @@ public class CaptureButton extends View {
         progresscolor = t.getColor(R.styleable.CaptureButton_progresscolor, progresscolor);
 
         progresswidth = t.getDimensionPixelOffset(R.styleable.CaptureButton_progresswidth, progresswidth);
-        Log.e("caodongquan", "duration " + duration);
-        Log.e("caodongquan", "outcirclecolor " + outcirclecolor);
-        Log.e("caodongquan", "innercirclecolor " + innercirclecolor);
-        Log.e("caodongquan", "progresscolor " + progresscolor);
-        Log.e("caodongquan", "progresswidth " + progresswidth);
+//        Log.e("caodongquan", "duration " + duration);
+//        Log.e("caodongquan", "outcirclecolor " + outcirclecolor);
+//        Log.e("caodongquan", "innercirclecolor " + innercirclecolor);
+//        Log.e("caodongquan", "progresscolor " + progresscolor);
+//        Log.e("caodongquan", "progresswidth " + progresswidth);
     }
 
     public CaptureButton(Context context, AttributeSet attrs, int defStyleAttr) {
@@ -93,17 +99,13 @@ public class CaptureButton extends View {
         progresscolor = t.getColor(R.styleable.CaptureButton_progresscolor, progresscolor);
 
         progresswidth = t.getInt(R.styleable.CaptureButton_progresswidth, progresswidth);
-        Log.e("caodongquan", "duration " + duration);
-        Log.e("caodongquan", "outcirclecolor " + outcirclecolor);
-        Log.e("caodongquan", "innercirclecolor " + innercirclecolor);
-        Log.e("caodongquan", "progresscolor " + progresscolor);
-        Log.e("caodongquan", "progresswidth " + progresswidth);
+//        Log.e("caodongquan", "duration " + duration);
+//        Log.e("caodongquan", "outcirclecolor " + outcirclecolor);
+//        Log.e("caodongquan", "innercirclecolor " + innercirclecolor);
+//        Log.e("caodongquan", "progresscolor " + progresscolor);
+//        Log.e("caodongquan", "progresswidth " + progresswidth);
 
         t.recycle();
-    }
-
-
-    private void initview() {
     }
 
 
@@ -135,9 +137,6 @@ public class CaptureButton extends View {
 
         Paint paint = new Paint();
 
-//        paint.setColor(Color.WHITE);
-//        canvas.drawRect(rectF,paint);
-//        paint.reset();
         paint.setColor(outcirclecolor);
         paint.setAntiAlias(true);
         canvas.drawCircle(centerX, centerY, out, paint);
@@ -148,8 +147,6 @@ public class CaptureButton extends View {
 
 
         if (state == 1) {
-
-//            Log.e("caodongquan","progressAngle "+progressAngle);
             paint.reset();
             paint.setColor(progresscolor);
             paint.setStyle(Paint.Style.STROKE);
@@ -160,11 +157,7 @@ public class CaptureButton extends View {
 
     }
 
-    //外环和内环的大小
-    float out, in, origin;
 
-    //
-    float progressAngle = 0;
 
     /**
      * 开始录影
@@ -287,15 +280,7 @@ public class CaptureButton extends View {
         set.start();
     }
 
-    private void finishRecordAnim() {
 
-    }
-
-
-    //点击控件的时间
-    long downMillus = 0;
-
-    Handler handler = new Handler();
 
 
     @Override
@@ -340,6 +325,7 @@ public class CaptureButton extends View {
     }
 
     private void deleteVideo() {
+        CameraUtils.getInstance().deleteVideo();
     }
 
 

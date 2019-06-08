@@ -235,47 +235,37 @@ public class FaceServer {
     }
 
 
-    String headerPath = Environment.getExternalStorageDirectory().getPath() + File.separator + "aaaa" + File.separator;
+    String headerPath;
 
     /**
      * 保存图片到本地
      *
-     * @param bmp
+     * @param nv21
      * @param faceInfo
      * @return
      */
-    private String saveHeaderImg(Bitmap bmp, FaceInfo faceInfo) {
-        if (bmp == null || faceInfo == null) {
+    private String saveHeaderImg(byte[] nv21, FaceInfo faceInfo, int width, int height) {
+        if (nv21 == null || faceInfo == null) {
             return "";
         }
+
+        YuvImage yuvImage = new YuvImage(nv21, ImageFormat.NV21, width, height, null);
+
         String name = String.valueOf(UUID.randomUUID());
+
+        headerPath = Environment.getExternalStorageDirectory().getPath() + File.separator + "videodetect" + File.separator + CameraUtils.getInstance().getCurrentVideoName() + File.separator;
         FileOutputStream fileOutputStream;
         Bitmap resultBmp = null;
         try {
             Rect rect = faceInfo.getRect();
-
-
-            int left = rect.left < 0 ? 0 : rect.left;
-            int top = rect.top < 0 ? 0 : rect.top;
-            int right = rect.right > bmp.getWidth() ? bmp.getWidth() : rect.right;
-            int bottom = rect.bottom > bmp.getHeight() ? bmp.getHeight() : rect.bottom;
-            resultBmp = Bitmap.createBitmap(bmp, left, top, right - rect.left, bottom - rect.top);
-//            File file = new File(Constants.SAVE_HEADER_DIR + name + Constants.JPG_IMG_SUFFIX);
-//            file.createNewFile();
-//            File baseDir = new File(headerPath);
-//            if (!baseDir.exists()) {
-//                baseDir.mkdirs();
-//            }
-
+            Rect rectResult = getBestRect(width, height, rect);
             File headerDir = new File(headerPath);
             if (!headerDir.exists()) {
                 headerDir.mkdirs();
             }
-
             File headerFile = new File(headerPath + name + ".jpg");
-
             fileOutputStream = new FileOutputStream(headerFile);
-            resultBmp.compress(Bitmap.CompressFormat.JPEG, 80, fileOutputStream);
+            yuvImage.compressToJpeg(rectResult, 100, fileOutputStream);
             fileOutputStream.flush();
             fileOutputStream.close();
         } catch (Exception e) {
@@ -381,34 +371,13 @@ public class FaceServer {
 
 
     Executor executor = Executors.newSingleThreadExecutor();
-    LinkedBlockingQueue<FaceRunnable> tasks = new LinkedBlockingQueue();
+//    LinkedBlockingQueue<FaceRunnable> tasks = new LinkedBlockingQueue();
     LinkedBlockingQueue<FaceRunnableNv21> tasksnv21 = new LinkedBlockingQueue();
     FaceEngine localFaceEngine;
 
     FaceDetectCallback faceDetectCallback;
 
-    public void detect(String s, Context context, FaceDetectCallback faceDetectCallback) {
 
-        this.faceDetectCallback = faceDetectCallback;
-
-        localFaceEngine = new FaceEngine();
-        int engineCode = localFaceEngine.init(context, FaceEngine.ASF_DETECT_MODE_VIDEO, FaceEngine.ASF_OP_0_HIGHER_EXT, 32, 50, FaceEngine.ASF_FACE_RECOGNITION | FaceEngine.ASF_FACE_DETECT);
-
-        File dir = new File(s);
-
-        File[] files = dir.listFiles();
-
-        for (File file : files) {
-            FaceRunnable faceRunnable = new FaceRunnable(file.getAbsolutePath());
-            tasks.add(faceRunnable);
-        }
-
-        Log.e(TAG, "s " + (s));
-        Log.e(TAG, "executor ==NULL " + (executor == null));
-        Log.e(TAG, "tasks ==NULL " + (tasks == null));
-        executor.execute(tasks.poll());
-
-    }
 
     public void detectNv21(byte[] nv21, Context context, FaceDetectCallback faceDetectCallback, int width, int height) {
 
@@ -426,8 +395,6 @@ public class FaceServer {
         executor.execute(tasksnv21.poll());
 
     }
-
-
 
 
     private static final int VALUE_FOR_4_ALIGN = 0b11;
@@ -488,67 +455,7 @@ public class FaceServer {
 
     private List<FaceFeature> faceFeatures = new ArrayList<>();
 
-    /**
-     * 人脸解析的线程
-     */
-    public class FaceRunnable implements Runnable {
 
-        private String filePath;
-
-        private FaceRunnable(String path) {
-            this.filePath = path;
-        }
-
-        @Override
-        public void run() {
-
-
-            synchronized (localFaceEngine) {
-
-
-                Log.e(TAG, "filePath  == " + filePath);
-
-                Bitmap originBmp = BitmapFactory.decodeFile(filePath);
-                Bitmap newBmp = alignBitmapForBgr24(originBmp);
-                byte[] rgb = bitmapToBgr(newBmp);
-
-                int width = newBmp.getWidth();
-                int height = newBmp.getHeight();
-                List<FaceInfo> faceInfoList = new ArrayList<>();
-                int code = localFaceEngine.detectFaces(rgb, width, height, FaceEngine.CP_PAF_NV21, faceInfoList);
-
-
-                if (code == 0) {
-                    if (!faceInfoList.isEmpty()) {
-
-                        for (FaceInfo f : faceInfoList) {
-                            FaceFeature faceFeature = new FaceFeature();
-                            int eCode = localFaceEngine.extractFaceFeature(rgb, width, height, FaceEngine.CP_PAF_NV21, f, faceFeature);
-
-                            Log.e("caodongquan","ecode "+eCode);
-                            if (eCode == 0) {
-                                addtoFaceFeature(newBmp, f, faceFeature);
-                            }
-                        }
-                    }
-                }
-
-                FaceRunnable runnable = tasks.poll();
-                if (runnable == null) {
-
-
-                    faceDetectCallback.detectFinish(faceFeatures.size(), System.currentTimeMillis());
-//                    Log.e(TAG, "一共有===" + faceFeatures.size() + "个特征码   " + System.currentTimeMillis());
-//                    Log.e("caodongquan", "结束时间   " + System.currentTimeMillis());
-
-                } else {
-                    executor.execute(runnable);
-                }
-            }
-
-
-        }
-    }
 
 
     public class FaceRunnableNv21 implements Runnable {
@@ -576,7 +483,7 @@ public class FaceServer {
 
                 List<FaceInfo> faceInfoList = new ArrayList<>();
                 int code = localFaceEngine.detectFaces(nv21, width, height, FaceEngine.CP_PAF_NV21, faceInfoList);
-                Log.e("caodongquan","1  code "+code);
+                Log.e("caodongquan", "1  code " + code);
 
                 if (code == 0) {
                     if (!faceInfoList.isEmpty()) {
@@ -585,15 +492,15 @@ public class FaceServer {
                             FaceFeature faceFeature = new FaceFeature();
                             int eCode = localFaceEngine.extractFaceFeature(nv21, width, height, FaceEngine.CP_PAF_NV21, f, faceFeature);
 
-                            Log.e("caodongquan","2  ecode "+eCode);
+                            Log.e("caodongquan", "2  ecode " + eCode);
                             if (eCode == 0) {
-                                addtoFaceFeature(null, f, faceFeature);
+                                addtoFaceFeature(nv21, f, faceFeature, width, height);
                             }
                         }
                     }
                 }
 
-                FaceRunnable runnable = tasks.poll();
+                FaceRunnableNv21 runnable = tasksnv21.poll();
                 if (runnable == null) {
 
 
@@ -610,13 +517,12 @@ public class FaceServer {
         }
     }
 
-    private void addtoFaceFeature(Bitmap bmp, FaceInfo faceinfo, FaceFeature faceFeature) {
+    private void addtoFaceFeature(byte[] nv21, FaceInfo faceinfo, FaceFeature faceFeature, int width, int height) {
         if (faceFeatures.isEmpty()) {
             faceFeatures.add(faceFeature);
 
-            if (bmp != null) {
-                String p = saveHeaderImg(bmp, faceinfo);
-                Log.e("caodongquan", p);
+            if (nv21 != null) {
+                String p = saveHeaderImg(nv21, faceinfo, width, height);
             }
         } else {
             boolean hasYet = false;
@@ -631,25 +537,12 @@ public class FaceServer {
                 }
             }
             if (!hasYet) {
-                if (bmp != null) {
-                    String p = saveHeaderImg(bmp, faceinfo);
-                    Log.e("caodongquan", p);
+                if (nv21 != null) {
+                    String p = saveHeaderImg(nv21, faceinfo, width, height);
                 }
                 faceFeatures.add(faceFeature);
             }
         }
     }
 
-
-    private void test() {
-        Camera camera = null;
-
-        camera.setFaceDetectionListener(new Camera.FaceDetectionListener() {
-            @Override
-            public void onFaceDetection(Camera.Face[] faces, Camera camera) {
-
-            }
-        });
-
-    }
 }
