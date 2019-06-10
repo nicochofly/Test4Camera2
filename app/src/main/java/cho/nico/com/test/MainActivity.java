@@ -1,6 +1,7 @@
 package cho.nico.com.test;
 
 import android.Manifest;
+import android.annotation.TargetApi;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
@@ -8,23 +9,23 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Process;
 import android.support.annotation.NonNull;
+import android.support.annotation.RequiresApi;
 import android.support.v7.app.AppCompatActivity;
 import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.SurfaceHolder;
-import android.widget.VideoView;
 
 import com.arcsoft.face.FaceEngine;
-import com.example.myapplication.R;
+import com.example.camera2lib.Camera2Utils;
+import com.example.camera2lib.PreviewCallback;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity implements ResizeCameraViewCallback {
+public class MainActivity extends AppCompatActivity implements ResizeCameraViewCallback, PreviewCallback {
     private String[] permissonArray = new String[]
             {
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.CAMERA
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO
             };
 
     private List<String> mRequestPermission = new ArrayList<String>();
@@ -33,7 +34,7 @@ public class MainActivity extends AppCompatActivity implements ResizeCameraViewC
 
     private FaceEngine faceEngine;
 
-    VideoView surfaceView;
+    AutoFitTextureView surfaceView;
     SurfaceHolder surfaceHolder;
 
     private final String TAG = getClass().getSimpleName();
@@ -66,20 +67,17 @@ public class MainActivity extends AppCompatActivity implements ResizeCameraViewC
     }
 
 
+    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     private void initView() {
         surfaceView = findViewById(R.id.camera_sv);
-        surfaceHolder = surfaceView.getHolder();
-        CameraUtils.getInstance(getBaseContext(), surfaceHolder, this).startPreview();
-
-        File dir = new File(basePath + "/videodetect/");
-        if (!dir.exists()) {
-            dir.mkdir();
-        }
-
-        initEngine();
+        Camera2Utils.getInstance().setContext(getBaseContext());
+        Camera2Utils.getInstance().setTextureView(surfaceView);
+        Camera2Utils.getInstance().init();
+        Camera2Utils.getInstance().setPreviewCallback(this);
     }
 
 
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     private void startrequestPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             for (String permission : permissonArray) {
@@ -159,5 +157,21 @@ public class MainActivity extends AppCompatActivity implements ResizeCameraViewC
     @Override
     public void setVideoPath(String path) {
 
+    }
+
+    @Override
+    public void onPreviewCallback(byte[] nv21) {
+
+        FaceServer.getInstance().detectNv21(nv21, getBaseContext(), new FaceDetectCallback() {
+            @Override
+            public void detectFinish(int size, long times) {
+
+            }
+
+            @Override
+            public void detectFailed() {
+
+            }
+        }, surfaceView.getWidth(), surfaceView.getHeight());
     }
 }

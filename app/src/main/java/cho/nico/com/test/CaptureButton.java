@@ -8,17 +8,21 @@ import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.os.Build;
 import android.os.CountDownTimer;
 import android.os.Handler;
+import android.support.annotation.RequiresApi;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 
-import com.example.myapplication.R;
+import com.example.camera2lib.Camera2Utils;
+
 
 /**
  * 按钮
  */
+@RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 public class CaptureButton extends View {
 
 
@@ -158,7 +162,6 @@ public class CaptureButton extends View {
     }
 
 
-
     /**
      * 开始录影
      */
@@ -281,8 +284,6 @@ public class CaptureButton extends View {
     }
 
 
-
-
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         int action = event.getAction();
@@ -325,16 +326,17 @@ public class CaptureButton extends View {
     }
 
     private void deleteVideo() {
-        CameraUtils.getInstance().deleteVideo();
+        Camera2Utils.getInstance().deleteVideo();
     }
 
 
     private void startRecord() {
-        CameraUtils.getInstance().startRecord();
+        Camera2Utils.getInstance().startRecording();
     }
 
+
     private void saveVideo() {
-        CameraUtils.getInstance().stopRecord();
+        Camera2Utils.getInstance().stopRecord();
     }
 
     private void takePic() {

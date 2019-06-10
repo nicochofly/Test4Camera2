@@ -6,7 +6,7 @@
     android:layout_height="match_parent">
 
 
-    <VideoView
+    <cho.nico.com.test.AutoFitTextureView
         android:id="@+id/camera_sv"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -16,7 +16,7 @@
         app:layout_constraintRight_toRightOf="parent"
         android:visibility="visible"/>
 
-    <com.example.myapplication.CaptureButton
+    <cho.nico.com.test.CaptureButton
         android:layout_width="150dp"
         android:layout_height="150dp"
         android:layout_marginBottom="20dp"

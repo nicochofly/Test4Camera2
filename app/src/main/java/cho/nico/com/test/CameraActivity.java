@@ -6,7 +6,6 @@ import android.os.Bundle;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
-import com.example.myapplication.R;
 
 import java.io.IOException;
 
