@@ -1,13 +1,17 @@
 package cho.nico.com.test;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
+import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.graphics.YuvImage;
 import android.hardware.Camera;
+import android.os.Build;
 import android.os.Environment;
+import android.support.annotation.RequiresApi;
 import android.util.Log;
 
 import com.arcsoft.face.ErrorInfo;
@@ -15,6 +19,7 @@ import com.arcsoft.face.FaceEngine;
 import com.arcsoft.face.FaceFeature;
 import com.arcsoft.face.FaceInfo;
 import com.arcsoft.face.FaceSimilar;
+import com.example.camera2lib.Camera2Utils;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -244,6 +249,7 @@ public class FaceServer {
      * @param faceInfo
      * @return
      */
+    @SuppressLint("NewApi")
     private String saveHeaderImg(byte[] nv21, FaceInfo faceInfo, int width, int height) {
         if (nv21 == null || faceInfo == null) {
             return "";
@@ -253,12 +259,13 @@ public class FaceServer {
 
         String name = String.valueOf(UUID.randomUUID());
 
-        headerPath = Environment.getExternalStorageDirectory().getPath() + File.separator + "videodetect" + File.separator + CameraUtils.getInstance().getCurrentVideoName() + File.separator;
+        headerPath = Environment.getExternalStorageDirectory().getPath() + File.separator + "videodetect" + File.separator + Camera2Utils.getInstance().getCurrentVideoName() + File.separator;
         FileOutputStream fileOutputStream;
         Bitmap resultBmp = null;
         try {
-            Rect rect = faceInfo.getRect();
-            Rect rectResult = getBestRect(width, height, rect);
+
+
+            Rect rectResult = getBestRect(width, height, faceInfo.getRect());
             File headerDir = new File(headerPath);
             if (!headerDir.exists()) {
                 headerDir.mkdirs();
@@ -268,6 +275,38 @@ public class FaceServer {
             yuvImage.compressToJpeg(rectResult, 100, fileOutputStream);
             fileOutputStream.flush();
             fileOutputStream.close();
+
+
+            Bitmap bitmap = BitmapFactory.decodeFile(headerFile.getAbsolutePath());
+            //判断人脸旋转角度，若不为0度则旋转注册图
+            boolean needAdjust = false;
+            if (bitmap != null) {
+                switch (faceInfo.getOrient()) {
+                    case FaceEngine.ASF_OC_0:
+                        break;
+                    case FaceEngine.ASF_OC_90:
+                        bitmap = getRotateBitmap(bitmap, 90);
+                        needAdjust = true;
+                        break;
+                    case FaceEngine.ASF_OC_180:
+                        bitmap = getRotateBitmap(bitmap, 180);
+                        needAdjust = true;
+                        break;
+                    case FaceEngine.ASF_OC_270:
+                        bitmap =getRotateBitmap(bitmap, 270);
+                        needAdjust = true;
+                        break;
+                    default:
+                        break;
+                }
+            }
+            if (needAdjust) {
+                fileOutputStream = new FileOutputStream(headerFile.getAbsolutePath());
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 100, fileOutputStream);
+                fileOutputStream.close();
+            }
+
+
         } catch (Exception e) {
             e.printStackTrace();
             return "";
@@ -278,6 +317,14 @@ public class FaceServer {
             }
         }
         return headerPath + name + ".jpg";
+    }
+    public  Bitmap getRotateBitmap(Bitmap b, float rotateDegree) {
+        if (b == null) {
+            return null;
+        }
+        Matrix matrix = new Matrix();
+        matrix.postRotate(rotateDegree);
+        return Bitmap.createBitmap(b, 0, 0, b.getWidth(), b.getHeight(), matrix, false);
     }
 
     /**
@@ -371,17 +418,19 @@ public class FaceServer {
 
 
     Executor executor = Executors.newSingleThreadExecutor();
-//    LinkedBlockingQueue<FaceRunnable> tasks = new LinkedBlockingQueue();
+    //    LinkedBlockingQueue<FaceRunnable> tasks = new LinkedBlockingQueue();
     LinkedBlockingQueue<FaceRunnableNv21> tasksnv21 = new LinkedBlockingQueue();
     FaceEngine localFaceEngine;
 
     FaceDetectCallback faceDetectCallback;
 
 
-
     public void detectNv21(byte[] nv21, Context context, FaceDetectCallback faceDetectCallback, int width, int height) {
 
         this.faceDetectCallback = faceDetectCallback;
+
+
+        Log.e(TAG, width + "x" + height);
 
         if (localFaceEngine == null) {
             localFaceEngine = new FaceEngine();
@@ -454,8 +503,6 @@ public class FaceServer {
 
 
     private List<FaceFeature> faceFeatures = new ArrayList<>();
-
-
 
 
     public class FaceRunnableNv21 implements Runnable {
@@ -544,5 +591,6 @@ public class FaceServer {
             }
         }
     }
+
 
 }

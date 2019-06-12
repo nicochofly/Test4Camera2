@@ -61,6 +61,8 @@ public class MainActivity extends AppCompatActivity implements ResizeCameraViewC
         screenHeight = displayMetrics.heightPixels;
 
 
+
+        initEngine();
         startrequestPermission();
 
 
@@ -74,6 +76,7 @@ public class MainActivity extends AppCompatActivity implements ResizeCameraViewC
         Camera2Utils.getInstance().setTextureView(surfaceView);
         Camera2Utils.getInstance().init();
         Camera2Utils.getInstance().setPreviewCallback(this);
+
     }
 
 
@@ -160,7 +163,7 @@ public class MainActivity extends AppCompatActivity implements ResizeCameraViewC
     }
 
     @Override
-    public void onPreviewCallback(byte[] nv21) {
+    public void onPreviewCallback(byte[] nv21, int width, int height) {
 
         FaceServer.getInstance().detectNv21(nv21, getBaseContext(), new FaceDetectCallback() {
             @Override
@@ -172,6 +175,6 @@ public class MainActivity extends AppCompatActivity implements ResizeCameraViewC
             public void detectFailed() {
 
             }
-        }, surfaceView.getWidth(), surfaceView.getHeight());
+        }, width, height);
     }
 }

@@ -90,7 +90,7 @@ public class CameraUtils {
                     public void detectFailed() {
 
                     }
-                }, mPreviewSize.width, mPreviewSize.height);
+                }, mPreviewSize.height, mPreviewSize.width);
             }
         }
     };

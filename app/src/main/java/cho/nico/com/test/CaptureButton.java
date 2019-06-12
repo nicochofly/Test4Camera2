@@ -307,11 +307,14 @@ public class CaptureButton extends View {
                 if (aa <= 500) {
                     //短按
                     handler.removeCallbacksAndMessages(null);
+                    Camera2Utils.getInstance().stopRecord();
                     takePic();
+
                 } else {
                     if (aa < 3000) {
                         //恢复 并删除视频
 //                        resetAnim();
+
                         deleteVideo();
                     } else {
                         //长按

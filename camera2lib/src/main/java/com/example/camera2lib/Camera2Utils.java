@@ -8,6 +8,7 @@ import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
@@ -415,7 +416,6 @@ public class Camera2Utils {
             mPreviewBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
 
             setUpPreviewReader();//预览
-//            setUpMediaRecorder();//视频
 
             Surface previewSurface = new Surface(texture);
             nv21Surface = imageReader.getSurface();
@@ -525,22 +525,49 @@ public class Camera2Utils {
 
 
     private void setUpPreviewReader() {
+
+        Log.e("caodongquan", "textureView  "+textureView.getWidth() + "x" + textureView.getHeight());
+
         imageReader = ImageReader.newInstance(textureView.getWidth(), textureView.getHeight(), ImageFormat.YUV_420_888, 10);
         imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
             @Override
             public void onImageAvailable(ImageReader reader) {
-
-                Log.e("Camera2Utils","================");
-                if (isRecording) {
-                    Image image = reader.acquireLatestImage();
-                    ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-                    if (nv21Callback != null) {
-                            nv21Callback.onPreviewCallback(buffer.array().clone());
-                        }
-                    if (image != null) {
-                        image.close();
-                    }
+                Image image = reader.acquireLatestImage();
+                if (image == null) {
+                    return;
                 }
+
+                if (image.getPlanes() == null) {
+                    image.close();
+                    return;
+                }
+                if (isRecording) {
+
+//                    ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+//
+//                    byte[] bytes = new byte[buffer.remaining()];
+//                    buffer.get(bytes);//由缓冲区存入字节数组
+
+//                    ByteBuffer y = image.getPlanes()[0].getBuffer();
+//                    ByteBuffer u = image.getPlanes()[1].getBuffer();
+//                    ByteBuffer v = image.getPlanes()[2].getBuffer();
+//                    Log.e("caodongquan", "width= " + image.getWidth());
+//                    Log.e("caodongquan", "height= " + image.getHeight());
+//                    Log.e("caodongquan", "y= " + y.remaining());
+//                    Log.e("caodongquan", "u= " + u.remaining());
+//                    Log.e("caodongquan", "v= " + v.remaining());
+
+                    Log.e("caodongquan", "img  "+image.getWidth() + "x" + image.getHeight());
+                    if (nv21Callback != null) {
+                        nv21Callback.onPreviewCallback(getDataFromImage(image, COLOR_FormatNV21), image.getWidth(), image.getHeight());
+                    }
+
+                }
+
+                if (image != null) {
+                    image.close();
+                }
+
             }
         }, mBackgroundHandler);
 
@@ -563,8 +590,8 @@ public class Camera2Utils {
             }
             String videoFileAbsPath = saveVideoPath + File.separator + videoFileName;
             mMediaRecorder.setOutputFile(videoFileAbsPath);
-            mMediaRecorder.setVideoEncodingBitRate(10000000);
-            mMediaRecorder.setVideoFrameRate(30);
+            mMediaRecorder.setVideoEncodingBitRate(MEDIA_QUALITY_MIDDLE);
+//            mMediaRecorder.setVideoFrameRate(30);
             mMediaRecorder.setVideoSize(mVideoSize.getWidth(), mVideoSize.getHeight());
             mMediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
             mMediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
@@ -593,6 +620,7 @@ public class Camera2Utils {
         try {
             closePreviewSession();
             setUpMediaRecorder();
+            setUpPreviewReader();
             SurfaceTexture texture = textureView.getSurfaceTexture();
             assert texture != null;
             texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
@@ -602,9 +630,11 @@ public class Camera2Utils {
             // Set up Surface for the camera preview
             Surface previewSurface = new Surface(texture);
             surfaces.add(previewSurface);
+            mPreviewBuilder.addTarget(previewSurface);
 
-            Surface aa = imageReader.getSurface();
-            mPreviewBuilder.addTarget(aa);
+
+            surfaces.add(imageReader.getSurface());
+            mPreviewBuilder.addTarget(imageReader.getSurface());
 
             // Set up Surface for the MediaRecorder
             Surface recorderSurface = mMediaRecorder.getSurface();
@@ -619,6 +649,13 @@ public class Camera2Utils {
                 public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
                     mPreviewSession = cameraCaptureSession;
                     updatePreview();
+
+                    backHandler.post(new Runnable() {
+                        @Override
+                        public void run() {
+                            mMediaRecorder.start();
+                        }
+                    });
 //                    getActivity().runOnUiThread(new Runnable() {
 //                        @Override
 //                        public void run() {
@@ -631,7 +668,7 @@ public class Camera2Utils {
 //                        }
 //                    });
                     isRecording = true;
-                    mMediaRecorder.start();
+//                    mMediaRecorder.start();
                 }
 
                 @Override
@@ -651,6 +688,7 @@ public class Camera2Utils {
      * 删除视频
      */
     public void deleteVideo() {
+        stopRecord();
         File file = new File(basePath + File.separator + "videodetect" + File.separator + currentVideoName + ".mp4");
         if (file.exists()) {
             file.delete();
@@ -679,6 +717,9 @@ public class Camera2Utils {
      */
     public void stopRecord() {
 // UI
+
+        if (isRecording == false)
+            return;
         isRecording = false;
         // Stop recording
         mMediaRecorder.stop();
@@ -689,5 +730,153 @@ public class Camera2Utils {
                     Toast.LENGTH_SHORT).show();
         }
         startPreview();
+    }
+
+
+    private static final int COLOR_FormatI420 = 1;
+    private static final int COLOR_FormatNV21 = 2;
+
+    private static boolean isImageFormatSupported(Image image) {
+        int format = image.getFormat();
+        switch (format) {
+            case ImageFormat.YUV_420_888:
+            case ImageFormat.NV21:
+            case ImageFormat.YV12:
+                return true;
+        }
+        return false;
+    }
+
+    private byte[] getDataFromImage(Image image, int colorFormat) {
+        if (colorFormat != COLOR_FormatI420 && colorFormat != COLOR_FormatNV21) {
+            throw new IllegalArgumentException("only support COLOR_FormatI420 " + "and COLOR_FormatNV21");
+        }
+        if (!isImageFormatSupported(image)) {
+            throw new RuntimeException("can't convert Image to byte array, format " + image.getFormat());
+        }
+        Rect crop = image.getCropRect();
+        int format = image.getFormat();
+        int width = crop.width();
+        int height = crop.height();
+        Image.Plane[] planes = image.getPlanes();
+        byte[] data = new byte[width * height * ImageFormat.getBitsPerPixel(format) / 8];
+        byte[] rowData = new byte[planes[0].getRowStride()];
+//        if (VERBOSE)
+        Log.v(TAG, "get data from " + planes.length + " planes");
+        int channelOffset = 0;
+        int outputStride = 1;
+        for (int i = 0; i < planes.length; i++) {
+            switch (i) {
+                case 0:
+                    channelOffset = 0;
+                    outputStride = 1;
+                    break;
+                case 1:
+                    if (colorFormat == COLOR_FormatI420) {
+                        channelOffset = width * height;
+                        outputStride = 1;
+                    } else if (colorFormat == COLOR_FormatNV21) {
+                        channelOffset = width * height + 1;
+                        outputStride = 2;
+                    }
+                    break;
+                case 2:
+                    if (colorFormat == COLOR_FormatI420) {
+                        channelOffset = (int) (width * height * 1.25);
+                        outputStride = 1;
+                    } else if (colorFormat == COLOR_FormatNV21) {
+                        channelOffset = width * height;
+                        outputStride = 2;
+                    }
+                    break;
+            }
+            ByteBuffer buffer = planes[i].getBuffer();
+            int rowStride = planes[i].getRowStride();
+            int pixelStride = planes[i].getPixelStride();
+//            if (VERBOSE) {
+            Log.v("c", "pixelStride " + pixelStride);
+            Log.v(TAG, "rowStride " + rowStride);
+            Log.v(TAG, "width " + width);
+            Log.v(TAG, "height " + height);
+            Log.v(TAG, "buffer size " + buffer.remaining());
+//            }
+            int shift = (i == 0) ? 0 : 1;
+            int w = width >> shift;
+            int h = height >> shift;
+            buffer.position(rowStride * (crop.top >> shift) + pixelStride * (crop.left >> shift));
+            for (int row = 0; row < h; row++) {
+                int length;
+                if (pixelStride == 1 && outputStride == 1) {
+                    length = w;
+                    buffer.get(data, channelOffset, length);
+                    channelOffset += length;
+                } else {
+                    length = (w - 1) * pixelStride + 1;
+                    buffer.get(rowData, 0, length);
+                    for (int col = 0; col < w; col++) {
+                        data[channelOffset] = rowData[col * pixelStride];
+                        channelOffset += outputStride;
+                    }
+                }
+                if (row < h - 1) {
+                    buffer.position(buffer.position() + rowStride - length);
+                }
+            }
+//            if (VERBOSE)
+            Log.v(TAG, "Finished reading data from plane " + i);
+        }
+        return data;
+    }
+
+
+    private byte[] YUV_420_888toNV21(Image image) {
+        byte[] nv21;
+        ByteBuffer yBuffer = image.getPlanes()[0].getBuffer();
+        ByteBuffer uBuffer = image.getPlanes()[1].getBuffer();
+        ByteBuffer vBuffer = image.getPlanes()[2].getBuffer();
+
+        int ySize = yBuffer.remaining();
+        int uSize = uBuffer.remaining();
+        int vSize = vBuffer.remaining();
+
+        nv21 = new byte[ySize + uSize + vSize];
+
+        //U and V are swapped
+        yBuffer.get(nv21, 0, ySize);
+        vBuffer.get(nv21, ySize, vSize);
+        uBuffer.get(nv21, ySize + vSize, uSize);
+
+        return nv21;
+    }
+
+
+    public byte[] YUV_420_888toNV(Image img, boolean nv12) {
+        byte[] nv;
+
+
+        ByteBuffer yBuffer = img.getPlanes()[0].getBuffer();
+        ByteBuffer uBuffer = img.getPlanes()[1].getBuffer();
+        ByteBuffer vBuffer = img.getPlanes()[2].getBuffer();
+
+        int ySize = yBuffer.remaining();
+        int uSize = uBuffer.remaining();
+        int vSize = vBuffer.remaining();
+
+        nv = new byte[ySize + uSize + vSize];
+
+        yBuffer.get(nv, 0, ySize);
+        if (nv12) {//U and V are swapped
+            vBuffer.get(nv, ySize, vSize);
+            uBuffer.get(nv, ySize + vSize, uSize);
+        } else {
+            uBuffer.get(nv, ySize, uSize);
+            vBuffer.get(nv, ySize + uSize, vSize);
+        }
+        return nv;
+    }
+
+    public static final int MEDIA_QUALITY_MIDDLE = 16 * 100000;
+    public String getCurrentVideoName() {
+        return currentVideoName;
     }
 }
