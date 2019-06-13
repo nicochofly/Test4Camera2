@@ -55,6 +55,11 @@ import java.util.concurrent.TimeUnit;
 
 import cho.nico.com.test.AutoFitTextureView;
 
+import static android.hardware.camera2.CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_3;
+import static android.hardware.camera2.CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_FULL;
+import static android.hardware.camera2.CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY;
+import static android.hardware.camera2.CameraMetadata.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED;
+
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 @SuppressLint("MissingPermission")
 public class Camera2Utils {
@@ -65,12 +70,6 @@ public class Camera2Utils {
 
 
     private Context context;
-
-    private CameraManager cameraManager;
-
-    private CameraDevice cameraDevice;
-
-    private String[] cameraidArray;
 
     private AutoFitTextureView textureView;
 
@@ -90,12 +89,6 @@ public class Camera2Utils {
      * preview.
      */
     private CameraCaptureSession mPreviewSession;
-
-
-    private static final String[] VIDEO_PERMISSIONS = {
-            Manifest.permission.CAMERA,
-            Manifest.permission.RECORD_AUDIO,
-    };
 
     private Integer mSensorOrientation;
     /**
@@ -152,7 +145,7 @@ public class Camera2Utils {
 
     private boolean isRecording = false;
 
-    private Surface nv21Surface, videoSurface;
+    private Surface nv21Surface;
 
     private PreviewCallback nv21Callback;
 
@@ -173,11 +166,6 @@ public class Camera2Utils {
     }
 
 
-//    private Camera2Utils(Context ctx, AutoFitTextureView textureView) {
-//        this.context = ctx;
-//        this.textureView = textureView;
-//    }
-
     public void init() {
         startBackgroundThread();
         windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
@@ -187,6 +175,7 @@ public class Camera2Utils {
         } else {
             textureView.setSurfaceTextureListener(mSurfaceTextureListener);
         }
+
     }
 
 
@@ -202,6 +191,8 @@ public class Camera2Utils {
         @Override
         public void onOpened(@NonNull CameraDevice cameraDevice) {
             mCameraDevice = cameraDevice;
+
+
             startPreview();
             mCameraOpenCloseLock.release();
             if (null != textureView) {
@@ -214,6 +205,8 @@ public class Camera2Utils {
             mCameraOpenCloseLock.release();
             cameraDevice.close();
             mCameraDevice = null;
+
+            Log.e(TAG, "onDisconnected");
         }
 
         @Override
@@ -221,9 +214,15 @@ public class Camera2Utils {
             mCameraOpenCloseLock.release();
             cameraDevice.close();
             mCameraDevice = null;
+            Log.e("cdq", "onError " + error);
 
         }
 
+        @Override
+        public void onClosed(CameraDevice camera) {
+            super.onClosed(camera);
+            Log.e(TAG, "onClosed ");
+        }
     };
 
     private CameraCaptureSession.CaptureCallback previewCallback = new CameraCaptureSession.CaptureCallback() {
@@ -248,6 +247,8 @@ public class Camera2Utils {
         mBackgroundThread = new HandlerThread("CameraBackground");
         mBackgroundThread.start();
         mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
+
+
     }
 
     /**
@@ -280,6 +281,26 @@ public class Camera2Utils {
 
             // Choose the sizes for camera preview and video recording
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
+
+
+            int hardwareLevel = characteristics.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL);
+
+
+            switch (hardwareLevel) {
+                case INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY:
+                    Log.e("caodongquan", "LEGACY");
+                    break;
+                case INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED:
+                    Log.e("caodongquan", "LIMITED");
+                    break;
+                case INFO_SUPPORTED_HARDWARE_LEVEL_FULL:
+                    Log.e("caodongquan", "FULL");
+                    break;
+                case INFO_SUPPORTED_HARDWARE_LEVEL_3:
+                    Log.e("caodongquan", "LEVEL_3");
+                    break;
+            }
+
             StreamConfigurationMap map = characteristics
                     .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             mSensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
@@ -408,8 +429,10 @@ public class Camera2Utils {
         if (null == mCameraDevice || !textureView.isAvailable() || null == mPreviewSize) {
             return;
         }
+//        closePreviewSession();
         try {
-            closePreviewSession();
+
+
             SurfaceTexture texture = textureView.getSurfaceTexture();
             assert texture != null;
             texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
@@ -443,6 +466,15 @@ public class Camera2Utils {
         }
     }
 
+
+    private void resetPreview() {
+        if (null == mCameraDevice || !textureView.isAvailable() || null == mPreviewSize) {
+            return;
+        }
+
+
+    }
+
     /**
      * Update the camera preview. {@link #startPreview()} needs to be called in advance.
      */
@@ -452,9 +484,12 @@ public class Camera2Utils {
         }
         try {
             setUpCaptureRequestBuilder(mPreviewBuilder);
+
             HandlerThread thread = new HandlerThread("CameraPreview");
             thread.start();
             mPreviewSession.setRepeatingRequest(mPreviewBuilder.build(), previewCallback, mBackgroundHandler);
+
+
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -462,9 +497,17 @@ public class Camera2Utils {
 
 
     private void closePreviewSession() {
-        if (mPreviewSession != null) {
-            mPreviewSession.close();
-            mPreviewSession = null;
+
+
+        try {
+            Log.e(TAG, "closePreviewSession ");
+            if (mPreviewSession != null) {
+                Log.e(TAG, "mPreviewSession != null ");
+                mPreviewSession.close();
+                mPreviewSession = null;
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -525,45 +568,24 @@ public class Camera2Utils {
 
 
     private void setUpPreviewReader() {
-
-        Log.e("caodongquan", "textureView  "+textureView.getWidth() + "x" + textureView.getHeight());
-
         imageReader = ImageReader.newInstance(textureView.getWidth(), textureView.getHeight(), ImageFormat.YUV_420_888, 10);
         imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
             @Override
             public void onImageAvailable(ImageReader reader) {
                 Image image = reader.acquireLatestImage();
-                if (image == null) {
-                    return;
-                }
-
-                if (image.getPlanes() == null) {
-                    image.close();
-                    return;
-                }
-                if (isRecording) {
-
-//                    ByteBuffer buffer = image.getPlanes()[0].getBuffer();
+//                if (image == null) {
+//                    return;
+//                }
 //
-//                    byte[] bytes = new byte[buffer.remaining()];
-//                    buffer.get(bytes);//由缓冲区存入字节数组
-
-//                    ByteBuffer y = image.getPlanes()[0].getBuffer();
-//                    ByteBuffer u = image.getPlanes()[1].getBuffer();
-//                    ByteBuffer v = image.getPlanes()[2].getBuffer();
-//                    Log.e("caodongquan", "width= " + image.getWidth());
-//                    Log.e("caodongquan", "height= " + image.getHeight());
-//                    Log.e("caodongquan", "y= " + y.remaining());
-//                    Log.e("caodongquan", "u= " + u.remaining());
-//                    Log.e("caodongquan", "v= " + v.remaining());
-
-                    Log.e("caodongquan", "img  "+image.getWidth() + "x" + image.getHeight());
-                    if (nv21Callback != null) {
-                        nv21Callback.onPreviewCallback(getDataFromImage(image, COLOR_FormatNV21), image.getWidth(), image.getHeight());
-                    }
-
-                }
-
+//                if (image.getPlanes() == null) {
+//                    image.close();
+//                    return;
+//                }
+//                if (isRecording) {
+//                    if (nv21Callback != null) {
+//                        nv21Callback.onPreviewCallback(getDataFromImage(image, COLOR_FormatNV21), image.getWidth(), image.getHeight());
+//                    }
+//                }
                 if (image != null) {
                     image.close();
                 }
@@ -591,7 +613,7 @@ public class Camera2Utils {
             String videoFileAbsPath = saveVideoPath + File.separator + videoFileName;
             mMediaRecorder.setOutputFile(videoFileAbsPath);
             mMediaRecorder.setVideoEncodingBitRate(MEDIA_QUALITY_MIDDLE);
-//            mMediaRecorder.setVideoFrameRate(30);
+            mMediaRecorder.setVideoFrameRate(30);
             mMediaRecorder.setVideoSize(mVideoSize.getWidth(), mVideoSize.getHeight());
             mMediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
             mMediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
@@ -718,18 +740,28 @@ public class Camera2Utils {
     public void stopRecord() {
 // UI
 
-        if (isRecording == false)
-            return;
         isRecording = false;
         // Stop recording
+
+        try {
+            mPreviewSession.stopRepeating();
+            mPreviewSession.abortCaptures();
+        } catch (CameraAccessException e) {
+            e.printStackTrace();
+        }
+
         mMediaRecorder.stop();
         mMediaRecorder.reset();
+//        mMediaRecorder.release();
 
         if (context != null) {
             Toast.makeText(context, "Video saved: " + currentVideoName,
                     Toast.LENGTH_SHORT).show();
         }
+
         startPreview();
+
+
     }
 
 
@@ -876,6 +908,7 @@ public class Camera2Utils {
     }
 
     public static final int MEDIA_QUALITY_MIDDLE = 16 * 100000;
+
     public String getCurrentVideoName() {
         return currentVideoName;
     }
