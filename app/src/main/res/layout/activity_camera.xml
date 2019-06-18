@@ -4,8 +4,13 @@
     android:layout_height="match_parent">
 
 
-    <SurfaceView
+    <!--<SurfaceView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:id="@+id/camera_sv"/>
+        android:id="@+id/camera_sv"/>-->
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:id="@+id/fl_layout"></FrameLayout>
 </android.support.constraint.ConstraintLayout>

@@ -65,6 +65,8 @@ public class CaptureButton extends View {
      */
     private int state = 0;
 
+    private CameraOprCallback callback;
+
     public CaptureButton(Context context) {
         super(context);
 
@@ -85,6 +87,9 @@ public class CaptureButton extends View {
         progresscolor = t.getColor(R.styleable.CaptureButton_progresscolor, progresscolor);
 
         progresswidth = t.getDimensionPixelOffset(R.styleable.CaptureButton_progresswidth, progresswidth);
+
+
+        t.recycle();
 //        Log.e("caodongquan", "duration " + duration);
 //        Log.e("caodongquan", "outcirclecolor " + outcirclecolor);
 //        Log.e("caodongquan", "innercirclecolor " + innercirclecolor);
@@ -103,12 +108,6 @@ public class CaptureButton extends View {
         progresscolor = t.getColor(R.styleable.CaptureButton_progresscolor, progresscolor);
 
         progresswidth = t.getInt(R.styleable.CaptureButton_progresswidth, progresswidth);
-//        Log.e("caodongquan", "duration " + duration);
-//        Log.e("caodongquan", "outcirclecolor " + outcirclecolor);
-//        Log.e("caodongquan", "innercirclecolor " + innercirclecolor);
-//        Log.e("caodongquan", "progresscolor " + progresscolor);
-//        Log.e("caodongquan", "progresswidth " + progresswidth);
-
         t.recycle();
     }
 
@@ -137,7 +136,6 @@ public class CaptureButton extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-
 
         Paint paint = new Paint();
 
@@ -307,9 +305,8 @@ public class CaptureButton extends View {
                 if (aa <= 500) {
                     //短按
                     handler.removeCallbacksAndMessages(null);
-                    Camera2Utils.getInstance().stopRecord();
+//                    Camera2Utils.getInstance().stopRecord();
                     takePic();
-
                 } else {
                     if (aa < 3000) {
                         //恢复 并删除视频
@@ -320,28 +317,48 @@ public class CaptureButton extends View {
                         //长按
                         saveVideo();
                     }
+                    resetAnim();
                 }
-
-                resetAnim();
                 break;
         }
         return true;
     }
 
+
+    public void setCameraOprCallback(CameraOprCallback cameraOprCallback) {
+        callback = cameraOprCallback;
+    }
+
     private void deleteVideo() {
-        Camera2Utils.getInstance().deleteVideo();
+        if(callback!=null)
+        {
+            callback.delFile("");
+        }
+//        Camera2Utils.getInstance().deleteVideo();
     }
 
 
     private void startRecord() {
-        Camera2Utils.getInstance().startRecording();
+        if(callback!=null)
+        {
+            callback.recordVideo();
+        }
+//        Camera2Utils.getInstance().startRecording();
     }
 
 
     private void saveVideo() {
-        Camera2Utils.getInstance().stopRecord();
+        if(callback!=null)
+        {
+            callback.stopRecord();
+        }
+//        Camera2Utils.getInstance().stopRecord();
     }
 
     private void takePic() {
+        if(callback!=null)
+        {
+            callback.capturePic();
+        }
     }
 }

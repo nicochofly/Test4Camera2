@@ -1,57 +1,97 @@
 package cho.nico.com.test;
 
+import android.Manifest;
+import android.annotation.TargetApi;
 import android.app.Activity;
+import android.content.pm.PackageManager;
 import android.hardware.Camera;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Process;
+import android.support.annotation.NonNull;
+import android.support.annotation.RequiresApi;
+import android.support.v4.app.FragmentActivity;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
-public class CameraActivity extends Activity implements SurfaceHolder.Callback {
+public class CameraActivity extends FragmentActivity {
 
-    SurfaceView surfaceView;
-    SurfaceHolder surfaceHolder;
+//    SurfaceView surfaceView;
+//    SurfaceHolder surfaceHolder;
 
-    Camera camera;
+    private String[] permissonArray = new String[]
+            {
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO
+            };
 
+    private List<String> mRequestPermission = new ArrayList<String>();
+
+    private static final int ACTION_REQUEST_PERMISSIONS = 0x001;
+    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_camera);
 
-        surfaceView = findViewById(R.id.camera_sv);
+        startrequestPermission();
 
-        surfaceHolder = surfaceView.getHolder();
+
+
+//        surfaceView = findViewById(R.id.camera_sv);
+//
+//        surfaceHolder = surfaceView.getHolder();
     }
 
 
-    private void openCamera() {
-        surfaceHolder.addCallback(this);
-
-        camera = Camera.open(Camera.CameraInfo.CAMERA_FACING_BACK);
-        try {
-            camera.setPreviewDisplay(surfaceHolder);
-            camera.startPreview();
-        } catch (IOException e) {
-            e.printStackTrace();
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private void startrequestPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            for (String permission : permissonArray) {
+                if (PackageManager.PERMISSION_GRANTED != checkPermission(permission, Process.myPid(), Process.myUid())) {
+                    mRequestPermission.add(permission);
+                }
+            }
+            if (!mRequestPermission.isEmpty()) {
+                requestPermissions(mRequestPermission.toArray(new String[mRequestPermission.size()]), ACTION_REQUEST_PERMISSIONS);
+            } else {
+                try {
+//                    initView();
+                    getSupportFragmentManager().beginTransaction().add(R.id.fl_layout, CameraFragment.newInstance()).commitAllowingStateLoss();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        } else {
+            try {
+//                initView();
+                getSupportFragmentManager().beginTransaction().add(R.id.fl_layout, CameraFragment.newInstance()).commitAllowingStateLoss();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
-    @Override
-    public void surfaceCreated(SurfaceHolder holder) {
-
-    }
 
     @Override
-    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-
-    }
-
-    @Override
-    public void surfaceDestroyed(SurfaceHolder holder) {
-
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return;
+        }
+        if (requestCode == ACTION_REQUEST_PERMISSIONS) {
+            for (int i = 0; i < grantResults.length; i++) {
+                for (String one : permissonArray) {
+                    if (permissions[i].equals(one) && grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+                        mRequestPermission.remove(one);
+                    }
+                }
+            }
+        }
     }
 }

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <cho.nico.com.test.AutoFitTextureView
+        android:id="@+id/main_texture"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+
+    <ImageView
+        android:id="@+id/flip_iv"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:layout_marginRight="100dp"
+        android:src="@mipmap/flip"
+        android:scaleType="center"
+        android:layout_marginTop="20dp"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <cho.nico.com.test.CaptureButton
+        android:id="@+id/btn"
+        android:layout_width="150dp"
+        android:layout_height="150dp"
+        android:layout_marginBottom="20dp"
+        app:backgroudcolor="#888888"
+        app:duration="15"
+        app:innercirclecolor="#00DBDB"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:progresscolor="#ff4060"
+        app:progresswidth="10dp" />
+</android.support.constraint.ConstraintLayout>
