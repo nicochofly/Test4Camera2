@@ -1,5 +1,6 @@
 package cho.nico.com.test;
 
+import android.content.Intent;
 import android.hardware.camera2.CameraAccessException;
 import android.os.Build;
 import android.os.Bundle;
@@ -13,8 +14,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 
+import com.example.camera2lib.Camera2Utils;
+
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-public class CameraFragment extends Fragment implements View.OnClickListener, CameraOprCallback {
+public class CameraFragment extends Fragment implements View.OnClickListener, CameraOprCallback,CameraResultCallback {
 
 
     private View view;
@@ -53,6 +56,7 @@ public class CameraFragment extends Fragment implements View.OnClickListener, Ca
 
         try {
             Camera2Utils1.getInstance().init(getContext(), cameraTexture);
+            Camera2Utils1.getInstance().setResultCallback(this);
 //            Camera2Utils1.getInstance().startPreview();
         } catch (CameraAccessException e) {
             e.printStackTrace();
@@ -81,17 +85,28 @@ public class CameraFragment extends Fragment implements View.OnClickListener, Ca
 
     @Override
     public void recordVideo() {
-
         Camera2Utils1.getInstance().startRecord();
     }
 
     @Override
-    public void stopRecord() {
-        Camera2Utils1.getInstance().stopRecord();
+    public void stopRecord(boolean save) {
+        Camera2Utils1.getInstance().stopRecord(save);
+    }
+
+
+    @Override
+    public void getMediaData(int mediatype, String mediaPath) {
+
+        Intent intent = new Intent(getActivity(), CaptureResultActivity.class);
+        intent.putExtra("path", mediaPath);
+        intent.putExtra("type", mediatype);
+        getActivity().startActivity(intent);
     }
 
     @Override
-    public void delFile(String path) {
+    public void getNv21Data(byte[] bytes) {
 
     }
+
+
 }

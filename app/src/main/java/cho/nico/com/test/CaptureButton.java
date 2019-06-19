@@ -13,10 +13,9 @@ import android.os.CountDownTimer;
 import android.os.Handler;
 import android.support.annotation.RequiresApi;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
-
-import com.example.camera2lib.Camera2Utils;
 
 
 /**
@@ -190,6 +189,7 @@ public class CaptureButton extends View {
         AnimatorSet set = new AnimatorSet();
         //当动画结束后启动录像Runnable并且回调录像开始接口
 
+
         set.addListener(new Animator.AnimatorListener() {
             @Override
             public void onAnimationStart(Animator animation) {
@@ -209,6 +209,9 @@ public class CaptureButton extends View {
 
                     @Override
                     public void onFinish() {
+
+                        Log.e("caodongquan", "onFinish");
+                        processhasFinish = true;
                         resetAnim();
                     }
                 };
@@ -264,6 +267,12 @@ public class CaptureButton extends View {
             @Override
             public void onAnimationEnd(Animator animation) {
                 countDownTimer.cancel();
+                consume = consume & true;
+                if (consume) {
+                    saveVideo();
+                } else {
+                    deleteVideo();
+                }
             }
 
             @Override
@@ -281,6 +290,9 @@ public class CaptureButton extends View {
         set.start();
     }
 
+    boolean consume = true;
+
+    boolean processhasFinish = false;
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
@@ -312,12 +324,17 @@ public class CaptureButton extends View {
                         //恢复 并删除视频
 //                        resetAnim();
 
-                        deleteVideo();
+//                        deleteVideo();
+                        consume = false;
                     } else {
                         //长按
-                        saveVideo();
+//                        saveVideo();
+                        consume = true;
                     }
-                    resetAnim();
+
+                    if (!processhasFinish) {
+                        resetAnim();
+                    }
                 }
                 break;
         }
@@ -329,35 +346,40 @@ public class CaptureButton extends View {
         callback = cameraOprCallback;
     }
 
+    /**
+     * record time too short , delete it
+     */
     private void deleteVideo() {
-        if(callback!=null)
-        {
-            callback.delFile("");
+        if (callback != null) {
+            callback.stopRecord(false);
         }
-//        Camera2Utils.getInstance().deleteVideo();
     }
 
 
+    /**
+     * start record
+     */
     private void startRecord() {
-        if(callback!=null)
-        {
+        if (callback != null) {
             callback.recordVideo();
         }
-//        Camera2Utils.getInstance().startRecording();
     }
 
 
+    /**
+     * save the video to sdcard
+     */
     private void saveVideo() {
-        if(callback!=null)
-        {
-            callback.stopRecord();
+        if (callback != null) {
+            callback.stopRecord(true);
         }
-//        Camera2Utils.getInstance().stopRecord();
     }
 
+    /**
+     * take pic
+     */
     private void takePic() {
-        if(callback!=null)
-        {
+        if (callback != null) {
             callback.capturePic();
         }
     }

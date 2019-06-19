@@ -484,12 +484,9 @@ public class Camera2Utils {
         }
         try {
             setUpCaptureRequestBuilder(mPreviewBuilder);
-
             HandlerThread thread = new HandlerThread("CameraPreview");
             thread.start();
             mPreviewSession.setRepeatingRequest(mPreviewBuilder.build(), previewCallback, mBackgroundHandler);
-
-
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -497,8 +494,6 @@ public class Camera2Utils {
 
 
     private void closePreviewSession() {
-
-
         try {
             Log.e(TAG, "closePreviewSession ");
             if (mPreviewSession != null) {

@@ -2,20 +2,14 @@ package cho.nico.com.test;
 
 import android.Manifest;
 import android.annotation.TargetApi;
-import android.app.Activity;
 import android.content.pm.PackageManager;
-import android.hardware.Camera;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Process;
 import android.support.annotation.NonNull;
 import android.support.annotation.RequiresApi;
 import android.support.v4.app.FragmentActivity;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
 
-
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
