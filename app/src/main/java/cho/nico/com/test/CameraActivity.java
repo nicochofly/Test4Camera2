@@ -9,23 +9,41 @@ import android.os.Process;
 import android.support.annotation.NonNull;
 import android.support.annotation.RequiresApi;
 import android.support.v4.app.FragmentActivity;
+import android.util.Log;
+
+import com.arcsoft.face.FaceEngine;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class CameraActivity extends FragmentActivity {
+public class CameraActivity extends FragmentActivity  {
 
-//    SurfaceView surfaceView;
-//    SurfaceHolder surfaceHolder;
+    private FaceEngine faceEngine;
+
+
+    private final String TAG = getClass().getSimpleName();
+
+    public static final String APP_ID = "6F8VPaapjic6BkoU2dbrfp1WKwdCjokFNqyFLAYFMRfi";
+    public static final String SDK_KEY = "G2owqnL7C3CggWpTVGWQmw6b2JoMnB98DK5kkyibufwR";
+
+    /**
+     * 初始化引擎
+     */
+    private void initEngine() {
+        faceEngine = new FaceEngine();
+       int code = faceEngine.active(this, APP_ID, SDK_KEY);
+        Log.e("caodongquan","code ==" +code);
+    }
 
     private String[] permissonArray = new String[]
             {
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO
             };
 
     private List<String> mRequestPermission = new ArrayList<String>();
 
     private static final int ACTION_REQUEST_PERMISSIONS = 0x001;
+
     @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -33,8 +51,9 @@ public class CameraActivity extends FragmentActivity {
 
         setContentView(R.layout.activity_camera);
 
-        startrequestPermission();
+        initEngine();
 
+        startrequestPermission();
 
 
 //        surfaceView = findViewById(R.id.camera_sv);
@@ -88,4 +107,5 @@ public class CameraActivity extends FragmentActivity {
             }
         }
     }
+
 }

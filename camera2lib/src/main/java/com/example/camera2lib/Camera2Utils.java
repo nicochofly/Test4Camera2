@@ -147,7 +147,7 @@ public class Camera2Utils {
 
     private Surface nv21Surface;
 
-    private PreviewCallback nv21Callback;
+//    private PreviewCallback nv21Callback;
 
     public static Camera2Utils getInstance() {
 
@@ -179,9 +179,9 @@ public class Camera2Utils {
     }
 
 
-    public void setPreviewCallback(PreviewCallback callback) {
-        nv21Callback = callback;
-    }
+//    public void setPreviewCallback(PreviewCallback callback) {
+//        nv21Callback = callback;
+//    }
 
     /**
      * {@link CameraDevice.StateCallback} is called when {@link CameraDevice} changes its status.

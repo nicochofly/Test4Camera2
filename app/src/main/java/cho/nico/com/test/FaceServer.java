@@ -259,7 +259,9 @@ public class FaceServer {
 
         String name = String.valueOf(UUID.randomUUID());
 
-        headerPath = Environment.getExternalStorageDirectory().getPath() + File.separator + "videodetect" + File.separator + Camera2Utils.getInstance().getCurrentVideoName() + File.separator;
+        String videoPath = Camera2Utils1.getInstance().getCurrentVideoPath();
+        String headerPath = videoPath.substring(0, videoPath.indexOf(videoPath.lastIndexOf(".")));
+        headerPath = headerPath+ File.separator;
         FileOutputStream fileOutputStream;
         Bitmap resultBmp = null;
         try {
@@ -293,7 +295,7 @@ public class FaceServer {
                         needAdjust = true;
                         break;
                     case FaceEngine.ASF_OC_270:
-                        bitmap =getRotateBitmap(bitmap, 270);
+                        bitmap = getRotateBitmap(bitmap, 270);
                         needAdjust = true;
                         break;
                     default:
@@ -318,7 +320,8 @@ public class FaceServer {
         }
         return headerPath + name + ".jpg";
     }
-    public  Bitmap getRotateBitmap(Bitmap b, float rotateDegree) {
+
+    public Bitmap getRotateBitmap(Bitmap b, float rotateDegree) {
         if (b == null) {
             return null;
         }

@@ -17,12 +17,11 @@ import android.view.SurfaceHolder;
 
 import com.arcsoft.face.FaceEngine;
 import com.example.camera2lib.Camera2Utils;
-import com.example.camera2lib.PreviewCallback;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity implements ResizeCameraViewCallback, PreviewCallback {
+public class MainActivity extends AppCompatActivity implements ResizeCameraViewCallback {
     private String[] permissonArray = new String[]
             {
                     Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO
@@ -75,7 +74,7 @@ public class MainActivity extends AppCompatActivity implements ResizeCameraViewC
         Camera2Utils.getInstance().setContext(getBaseContext());
         Camera2Utils.getInstance().setTextureView(surfaceView);
         Camera2Utils.getInstance().init();
-        Camera2Utils.getInstance().setPreviewCallback(this);
+//        Camera2Utils.getInstance().setPreviewCallback(this);
 
     }
 
@@ -162,19 +161,19 @@ public class MainActivity extends AppCompatActivity implements ResizeCameraViewC
 
     }
 
-    @Override
-    public void onPreviewCallback(byte[] nv21, int width, int height) {
-
-        FaceServer.getInstance().detectNv21(nv21, getBaseContext(), new FaceDetectCallback() {
-            @Override
-            public void detectFinish(int size, long times) {
-
-            }
-
-            @Override
-            public void detectFailed() {
-
-            }
-        }, width, height);
-    }
+//    @Override
+//    public void onPreviewCallback(byte[] nv21, int width, int height) {
+//
+//        FaceServer.getInstance().detectNv21(nv21, getBaseContext(), new FaceDetectCallback() {
+//            @Override
+//            public void detectFinish(int size, long times) {
+//
+//            }
+//
+//            @Override
+//            public void detectFailed() {
+//
+//            }
+//        }, width, height);
+//    }
 }

@@ -18,7 +18,7 @@
         android:id="@+id/flip_iv"
         android:layout_width="100dp"
         android:layout_height="100dp"
-        android:layout_marginRight="100dp"
+        android:layout_marginRight="20dp"
         android:src="@mipmap/flip"
         android:scaleType="center"
         android:layout_marginTop="20dp"

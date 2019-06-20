@@ -6,6 +6,7 @@ import android.content.res.Configuration;
 import android.graphics.ImageFormat;
 import android.graphics.Matrix;
 import android.graphics.Point;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
@@ -37,8 +38,6 @@ import android.view.WindowManager;
 import android.widget.Toast;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -181,6 +180,24 @@ public class Camera2Utils1 {
 
     private CameraResultCallback cameraResultCallback;
 
+    private CameraViewTouchCallback cameraViewTouchCallback;
+
+
+    private static final int COLOR_FormatI420 = 1;
+    private static final int COLOR_FormatNV21 = 2;
+
+    private static boolean isImageFormatSupported(Image image) {
+        int format = image.getFormat();
+        switch (format) {
+            case ImageFormat.YUV_420_888:
+            case ImageFormat.NV21:
+            case ImageFormat.YV12:
+                return true;
+        }
+        return false;
+    }
+
+
     /**
      * A {@link CameraCaptureSession.CaptureCallback} that handles events related to JPEG capture.
      */
@@ -269,10 +286,9 @@ public class Camera2Utils1 {
     private ImageReader.OnImageAvailableListener jpegImageLister = new ImageReader.OnImageAvailableListener() {
         @Override
         public void onImageAvailable(ImageReader reader) {
-
             File file = new File(basePath + System.currentTimeMillis() + ".jpg");
             Image image = reader.acquireLatestImage();
-            new Thread(new ImageSaver(image, file)).start();
+            new Thread(new SavePicRunnable(image, file, cameraResultCallback)).start();
         }
     };
 
@@ -284,6 +300,8 @@ public class Camera2Utils1 {
 //            startPreview();
             try {
                 createCameraPreviewSession();
+
+                initTextureTouchEvent();
             } catch (Exception e) {
                 e.printStackTrace();
                 camera.close();
@@ -305,6 +323,34 @@ public class Camera2Utils1 {
 
         }
     };
+
+
+    private void initTextureTouchEvent() {
+
+
+        cameraViewTouchCallback = new CameraViewTouchCallback() {
+            @Override
+            public CameraCharacteristics getCameraCharacteristics() throws CameraAccessException {
+                return cameraManager.getCameraCharacteristics(cameraId);
+            }
+
+            @Override
+            public void setCropRegion(Rect region) {
+                if (mPreviewRequestBuilder != null) {
+                    mPreviewRequestBuilder.set(CaptureRequest.SCALER_CROP_REGION, region);
+                }
+            }
+
+            @Override
+            public void setRepeatingRequest() throws CameraAccessException {
+                if (mPreviewRequestBuilder != null && previewSession != null && mPreviewCaptureCallback != null) {
+                    previewSession.setRepeatingRequest(mPreviewRequestBuilder.build(),
+                            mPreviewCaptureCallback, backgroudHandler);
+                }
+            }
+        };
+        textureView.setTouchCallback(cameraViewTouchCallback);
+    }
 
     private CameraCaptureSession.StateCallback previewStateCallback = new CameraCaptureSession.StateCallback() {
         @Override
@@ -337,17 +383,17 @@ public class Camera2Utils1 {
     };
 
 
-    private CameraCaptureSession.CaptureCallback captureCallback = new CameraCaptureSession.CaptureCallback() {
-        @Override
-        public void onCaptureStarted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, long timestamp, long frameNumber) {
-            super.onCaptureStarted(session, request, timestamp, frameNumber);
-        }
-
-        @Override
-        public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
-            super.onCaptureCompleted(session, request, result);
-        }
-    };
+//    private CameraCaptureSession.CaptureCallback captureCallback = new CameraCaptureSession.CaptureCallback() {
+//        @Override
+//        public void onCaptureStarted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, long timestamp, long frameNumber) {
+//            super.onCaptureStarted(session, request, timestamp, frameNumber);
+//        }
+//
+//        @Override
+//        public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
+//            super.onCaptureCompleted(session, request, result);
+//        }
+//    };
 
 
     /**
@@ -400,6 +446,8 @@ public class Camera2Utils1 {
 
         this.context = ctx;
         this.textureView = textureview;
+
+
         startBackThread();
         windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
         cameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
@@ -413,12 +461,7 @@ public class Camera2Utils1 {
         } else {
             return;
         }
-        if (textureView.isAvailable()) {
-            Log.e(TAG, "isAvailable");
-            openCamera(textureView.getWidth(), textureView.getHeight());
-        } else {
-            textureView.setSurfaceTextureListener(mSurfaceTextureListener);
-        }
+
     }
 
 
@@ -448,23 +491,15 @@ public class Camera2Utils1 {
     }
 
 
-    private void closeCurrentSession() throws CameraAccessException {
-        if (previewSession == null) {
-            return;
-        }
-        previewSession.abortCaptures();
-        previewSession.stopRepeating();
-    }
-
-    private void updatePreview() {
+    private void updatePreview(CaptureRequest.Builder recordBuilder) {
         if (null == cameraDevice) {
             return;
         }
         try {
-            setUpCaptureRequestBuilder(mPreviewRequestBuilder);
+            setUpCaptureRequestBuilder(recordBuilder);
             HandlerThread thread = new HandlerThread("CameraPreview");
             thread.start();
-            previewSession.setRepeatingRequest(mPreviewRequestBuilder.build(), null, backgroudHandler);
+            previewSession.setRepeatingRequest(recordBuilder.build(), null, backgroudHandler);
 
         } catch (CameraAccessException e) {
             e.printStackTrace();
@@ -476,25 +511,38 @@ public class Camera2Utils1 {
     }
 
 
-    private void setupPreview() {
-        nv21Reader = ImageReader.newInstance(mPreviewSize.getWidth(), mPreviewSize.getHeight(), ImageFormat.YUV_420_888, 10);
-        nv21Reader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
-            @Override
-            public void onImageAvailable(ImageReader reader) {
-
-                Image img = reader.acquireLatestImage();
-                img.close();
-            }
-        }, backgroudHandler);
-
-
-    }
+//    private void setupPreview() {
+//        nv21Reader = ImageReader.newInstance(mPreviewSize.getWidth(), mPreviewSize.getHeight(), ImageFormat.YUV_420_888, 10);
+//        nv21Reader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
+//            @Override
+//            public void onImageAvailable(ImageReader reader) {
+//
+//                Image img = reader.acquireLatestImage();
+//                img.close();
+//            }
+//        }, backgroudHandler);
+//
+//    }
 
 
     private void startBackThread() {
         backgroudThread = new HandlerThread(getClass().getSimpleName());
         backgroudThread.start();
         backgroudHandler = new Handler(backgroudThread.getLooper());
+    }
+
+
+    private void stopBackThread() {
+        if (backgroudThread != null) {
+            backgroudThread.quitSafely();
+            try {
+                backgroudThread.join();
+                backgroudThread = null;
+                backgroudHandler = null;
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -518,41 +566,41 @@ public class Camera2Utils1 {
     /**
      * Start the camera preview.
      */
-    private void startPreview() {
-        if (null == cameraDevice || !textureView.isAvailable() || null == mPreviewSize) {
-            return;
-        }
-//        closePreviewSession();
-        try {
-            SurfaceTexture texture = textureView.getSurfaceTexture();
-            assert texture != null;
-            texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
-            mPreviewRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
-
-            setUpPreviewReader();//预览
-
-            Surface previewSurface = new Surface(texture);
-            Surface nv21Surface = nv21Reader.getSurface();
-
-            mPreviewRequestBuilder.addTarget(previewSurface);
-            mPreviewRequestBuilder.addTarget(nv21Surface);
-            cameraDevice.createCaptureSession(Arrays.asList(previewSurface, nv21Surface),
-                    new CameraCaptureSession.StateCallback() {
-
-                        @Override
-                        public void onConfigured(@NonNull CameraCaptureSession session) {
-                            previewSession = session;
-                            updatePreview();
-                        }
-
-                        @Override
-                        public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-                        }
-                    }, backgroudHandler);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
-    }
+//    private void startPreview() {
+//        if (null == cameraDevice || !textureView.isAvailable() || null == mPreviewSize) {
+//            return;
+//        }
+////        closePreviewSession();
+//        try {
+//            SurfaceTexture texture = textureView.getSurfaceTexture();
+//            assert texture != null;
+//            texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
+//            mPreviewRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+//
+//            setUpPreviewReader();//预览
+//
+//            Surface previewSurface = new Surface(texture);
+//            Surface nv21Surface = nv21Reader.getSurface();
+//
+//            mPreviewRequestBuilder.addTarget(previewSurface);
+//            mPreviewRequestBuilder.addTarget(nv21Surface);
+//            cameraDevice.createCaptureSession(Arrays.asList(previewSurface, nv21Surface),
+//                    new CameraCaptureSession.StateCallback() {
+//
+//                        @Override
+//                        public void onConfigured(@NonNull CameraCaptureSession session) {
+//                            previewSession = session;
+////                            updatePreview();
+//                        }
+//
+//                        @Override
+//                        public void onConfigureFailed(@NonNull CameraCaptureSession session) {
+//                        }
+//                    }, backgroudHandler);
+//        } catch (CameraAccessException e) {
+//            e.printStackTrace();
+//        }
+//    }
 
     /**
      * Configures the necessary {@link android.graphics.Matrix} transformation to `mTextureView`.
@@ -669,14 +717,6 @@ public class Camera2Utils1 {
         openCamera(textureView.getWidth(), textureView.getHeight());
     }
 
-    /**
-     * set the camera capture-data callback
-     * @param resultCallback
-     */
-    public void setResultCallback(CameraResultCallback resultCallback) {
-        cameraResultCallback = resultCallback;
-    }
-
 
     /**
      * Compares two {@code Size}s based on their areas.
@@ -747,15 +787,8 @@ public class Camera2Utils1 {
     @SuppressWarnings("SuspiciousNameCombination")
     private void setUpCameraOutputs(int width, int height) {
         try {
-//            for (String cameraId : cameraManager.getCameraIdList()) {
             CameraCharacteristics characteristics
                     = cameraManager.getCameraCharacteristics(cameraId);
-
-            // We don't use a front facing camera in this sample.
-//                Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
-//                if (facing != null && facing == CameraCharacteristics.LENS_FACING_FRONT) {
-//                    continue;
-//                }
 
             StreamConfigurationMap map = characteristics.get(
                     CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
@@ -771,6 +804,7 @@ public class Camera2Utils1 {
                     ImageFormat.JPEG, /*maxImages*/1);
             jpegReader.setOnImageAvailableListener(
                     jpegImageLister, backgroudHandler);
+
 
             // Find out if we need to swap dimension to get the preview size relative to sensor
             // coordinate.
@@ -840,8 +874,6 @@ public class Camera2Utils1 {
 
             // Check if the flash is supported.
             Boolean available = characteristics.get(CameraCharacteristics.FLASH_INFO_AVAILABLE);
-
-
             flashSupported = available == null ? false : available;
 
             int[] afAvailableModes = characteristics.get(CameraCharacteristics.CONTROL_AF_AVAILABLE_MODES);
@@ -931,22 +963,29 @@ public class Camera2Utils1 {
             SurfaceTexture texture = textureView.getSurfaceTexture();
             assert texture != null;
             texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
-            mPreviewRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
+            final CaptureRequest.Builder recordBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
             List<Surface> surfaces = new ArrayList<>();
 
             // Set up Surface for the camera preview
             Surface previewSurface = new Surface(texture);
             surfaces.add(previewSurface);
-            mPreviewRequestBuilder.addTarget(previewSurface);
+            recordBuilder.addTarget(previewSurface);
 
 
             surfaces.add(nv21Reader.getSurface());
-            mPreviewRequestBuilder.addTarget(nv21Reader.getSurface());
+            recordBuilder.addTarget(nv21Reader.getSurface());
 
             // Set up Surface for the MediaRecorder
             Surface recorderSurface = mediaRecorder.getSurface();
+            recordBuilder.addTarget(recorderSurface);
             surfaces.add(recorderSurface);
-            mPreviewRequestBuilder.addTarget(recorderSurface);
+
+            Rect zoomRect = mPreviewRequestBuilder.get(CaptureRequest.SCALER_CROP_REGION);
+
+
+            if (zoomRect != null) {
+                recordBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoomRect);
+            }
 
             // Start a capture session
             // Once the session starts, we can update the UI and start recording
@@ -955,8 +994,7 @@ public class Camera2Utils1 {
                 @Override
                 public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
                     previewSession = cameraCaptureSession;
-                    updatePreview();
-
+                    updatePreview(recordBuilder);
                     mediaRecorder.start();
                     isRecording = true;
                 }
@@ -984,13 +1022,10 @@ public class Camera2Utils1 {
     public void stopRecord(boolean save) {
         try {
             isRecording = false;
-            closeCurrentSession();
             mediaRecorder.stop();
             mediaRecorder.reset();
             mediaRecorder.release();
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        } catch (IllegalStateException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         } finally {
             mediaRecorder = null;
@@ -1050,6 +1085,11 @@ public class Camera2Utils1 {
             setAutoFocus(captureBuilder);
             setAutoFlash(captureBuilder);
 
+
+            Rect zoomRect = mPreviewRequestBuilder.get(CaptureRequest.SCALER_CROP_REGION);
+            if (zoomRect != null) {
+                captureBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoomRect);
+            }
             // Orientation
 //            int rotation = activity.getWindowManager().getDefaultDisplay().getRotation();
             captureBuilder.set(CaptureRequest.JPEG_ORIENTATION, getOrientation(rotation));
@@ -1120,7 +1160,6 @@ public class Camera2Utils1 {
             mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
             String currentVideoName = "video_" + System.currentTimeMillis();
             String videoFileName = currentVideoName + ".mp4";
-//            String saveVideoPath = basePath + File.separator + "videodetect";
 
             File file = new File(basePath);
             if (!file.exists()) {
@@ -1157,25 +1196,21 @@ public class Camera2Utils1 {
             @Override
             public void onImageAvailable(ImageReader reader) {
                 Image image = reader.acquireLatestImage();
-//                if (image == null) {
-//                    return;
-//                }
-//
-//                if (image.getPlanes() == null) {
-//                    image.close();
-//                    return;
-//                }
-//                if (isRecording) {
-//                    if (nv21Callback != null) {
-//                        nv21Callback.onPreviewCallback(getDataFromImage(image, COLOR_FormatNV21), image.getWidth(), image.getHeight());
-//                    }
-//                }
+                if (image == null) {
+                    return;
+                }
+                if (isRecording) {
+                    Log.e(TAG, "########onPreviewCallback  " + (cameraResultCallback != null));
+                    if (cameraResultCallback != null) {
+                        cameraResultCallback.getNv21Data(getDataFromImage(image, COLOR_FormatNV21), image.getWidth(), image.getHeight());
+                    }
+                }
                 if (image != null) {
                     image.close();
                 }
 
             }
-        }, backgroudHandler);
+        }, null);
 
 
     }
@@ -1185,6 +1220,8 @@ public class Camera2Utils1 {
         try {
             Log.e(TAG, "closePreviewSession ");
             if (previewSession != null) {
+                previewSession.abortCaptures();
+                previewSession.stopRepeating();
                 Log.e(TAG, "mPreviewSession != null ");
                 previewSession.close();
                 previewSession = null;
@@ -1194,48 +1231,132 @@ public class Camera2Utils1 {
         }
     }
 
-    /**
-     * Saves a JPEG {@link Image} into the specified {@link File}.
-     */
-    private class ImageSaver implements Runnable {
 
-        /**
-         * The JPEG image
-         */
-        private final Image mImage;
-        /**
-         * The file we save the image into.
-         */
-        private final File mFile;
+    public void stop() {
+        try {
+            if (mediaRecorder != null) {
+                mediaRecorder.stop();
+                mediaRecorder.reset();
+                mediaRecorder.release();
+            }
+            closePreviewSession();
+            cameraDevice.close();
 
-        ImageSaver(Image image, File file) {
-            mImage = image;
-            mFile = file;
+            if (nv21Reader != null) {
+                nv21Reader.close();
+                nv21Reader = null;
+            }
+            if (jpegReader != null) {
+                jpegReader.close();
+                jpegReader = null;
+            }
+
+            stopBackThread();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
+    }
 
-        @Override
-        public void run() {
-            ByteBuffer buffer = mImage.getPlanes()[0].getBuffer();
-            byte[] bytes = new byte[buffer.remaining()];
-            buffer.get(bytes);
-            FileOutputStream output = null;
-            try {
-                output = new FileOutputStream(mFile);
-                output.write(bytes);
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                mImage.close();
-                if (null != output) {
-                    try {
-                        output.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
+    public void resume(CameraResultCallback resultCallback) {
+        if (textureView.isAvailable()) {
+            Log.e(TAG, "isAvailable");
+            openCamera(textureView.getWidth(), textureView.getHeight());
+        } else {
+            textureView.setSurfaceTextureListener(mSurfaceTextureListener);
+        }
+        this.cameraResultCallback = resultCallback;
+    }
+
+
+    /**
+     * 根据image对象，转成人脸引擎需要的nv21格式数组
+     *
+     * @param image
+     * @param colorFormat
+     * @return
+     */
+    private byte[] getDataFromImage(Image image, int colorFormat) {
+        if (colorFormat != COLOR_FormatI420 && colorFormat != COLOR_FormatNV21) {
+            throw new IllegalArgumentException("only support COLOR_FormatI420 " + "and COLOR_FormatNV21");
+        }
+        if (!isImageFormatSupported(image)) {
+            throw new RuntimeException("can't convert Image to byte array, format " + image.getFormat());
+        }
+        Rect crop = image.getCropRect();
+        int format = image.getFormat();
+        int width = crop.width();
+        int height = crop.height();
+        Image.Plane[] planes = image.getPlanes();
+        byte[] data = new byte[width * height * ImageFormat.getBitsPerPixel(format) / 8];
+        byte[] rowData = new byte[planes[0].getRowStride()];
+//        if (VERBOSE)
+        Log.v(TAG, "get data from " + planes.length + " planes");
+        int channelOffset = 0;
+        int outputStride = 1;
+        for (int i = 0; i < planes.length; i++) {
+            switch (i) {
+                case 0:
+                    channelOffset = 0;
+                    outputStride = 1;
+                    break;
+                case 1:
+                    if (colorFormat == COLOR_FormatI420) {
+                        channelOffset = width * height;
+                        outputStride = 1;
+                    } else if (colorFormat == COLOR_FormatNV21) {
+                        channelOffset = width * height + 1;
+                        outputStride = 2;
+                    }
+                    break;
+                case 2:
+                    if (colorFormat == COLOR_FormatI420) {
+                        channelOffset = (int) (width * height * 1.25);
+                        outputStride = 1;
+                    } else if (colorFormat == COLOR_FormatNV21) {
+                        channelOffset = width * height;
+                        outputStride = 2;
+                    }
+                    break;
+            }
+            ByteBuffer buffer = planes[i].getBuffer();
+            int rowStride = planes[i].getRowStride();
+            int pixelStride = planes[i].getPixelStride();
+//            if (VERBOSE) {
+            Log.v("c", "pixelStride " + pixelStride);
+            Log.v(TAG, "rowStride " + rowStride);
+            Log.v(TAG, "width " + width);
+            Log.v(TAG, "height " + height);
+            Log.v(TAG, "buffer size " + buffer.remaining());
+//            }
+            int shift = (i == 0) ? 0 : 1;
+            int w = width >> shift;
+            int h = height >> shift;
+            buffer.position(rowStride * (crop.top >> shift) + pixelStride * (crop.left >> shift));
+            for (int row = 0; row < h; row++) {
+                int length;
+                if (pixelStride == 1 && outputStride == 1) {
+                    length = w;
+                    buffer.get(data, channelOffset, length);
+                    channelOffset += length;
+                } else {
+                    length = (w - 1) * pixelStride + 1;
+                    buffer.get(rowData, 0, length);
+                    for (int col = 0; col < w; col++) {
+                        data[channelOffset] = rowData[col * pixelStride];
+                        channelOffset += outputStride;
                     }
                 }
-
-                cameraResultCallback.getMediaData(0, mFile.getAbsolutePath());
+                if (row < h - 1) {
+                    buffer.position(buffer.position() + rowStride - length);
+                }
             }
+//            if (VERBOSE)
+            Log.v(TAG, "Finished reading data from plane " + i);
         }
+        return data;
+    }
+
+    public String getCurrentVideoPath() {
+        return currentVideoPath;
     }
 }

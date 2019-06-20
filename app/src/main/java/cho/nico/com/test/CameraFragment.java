@@ -8,16 +8,14 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.annotation.RequiresApi;
 import android.support.v4.app.Fragment;
+import android.util.Log;
 import android.view.LayoutInflater;
-import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 
-import com.example.camera2lib.Camera2Utils;
-
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-public class CameraFragment extends Fragment implements View.OnClickListener, CameraOprCallback,CameraResultCallback {
+public class CameraFragment extends Fragment implements View.OnClickListener, CameraOprCallback, CameraResultCallback {
 
 
     private View view;
@@ -56,8 +54,6 @@ public class CameraFragment extends Fragment implements View.OnClickListener, Ca
 
         try {
             Camera2Utils1.getInstance().init(getContext(), cameraTexture);
-            Camera2Utils1.getInstance().setResultCallback(this);
-//            Camera2Utils1.getInstance().startPreview();
         } catch (CameraAccessException e) {
             e.printStackTrace();
         }
@@ -76,6 +72,20 @@ public class CameraFragment extends Fragment implements View.OnClickListener, Ca
                 break;
 
         }
+    }
+
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        Camera2Utils1.getInstance().resume(this);
+    }
+
+
+    @Override
+    public void onStop() {
+        super.onStop();
+        Camera2Utils1.getInstance().stop();
     }
 
     @Override
@@ -104,8 +114,20 @@ public class CameraFragment extends Fragment implements View.OnClickListener, Ca
     }
 
     @Override
-    public void getNv21Data(byte[] bytes) {
+    public void getNv21Data(byte[] nv21, int width, int height) {
 
+
+        FaceServer.getInstance().detectNv21(nv21, getContext(), new FaceDetectCallback() {
+            @Override
+            public void detectFinish(int size, long times) {
+                Log.e("caodongquan"," detectFinish 共有"+size+"个特征码   耗时 "+times);
+            }
+
+            @Override
+            public void detectFailed() {
+
+            }
+        }, width, height);
     }
 
 
