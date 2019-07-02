@@ -8,6 +8,12 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+
+import cho.nico.com.test.callback.CameraResultCallback;
+
+/**
+ * 录制视频，保存图片runnable
+ */
 @RequiresApi(api = Build.VERSION_CODES.KITKAT)
 public class SavePicRunnable implements Runnable {
 
@@ -22,10 +28,13 @@ public class SavePicRunnable implements Runnable {
 
     private CameraResultCallback cameraResultCallback;
 
-    SavePicRunnable(Image image, File file, CameraResultCallback callback) {
+    private int type;
+
+    public SavePicRunnable(Image image, File file, int type, CameraResultCallback callback) {
         mImage = image;
         mFile = file;
         this.cameraResultCallback = callback;
+        this.type = type;
     }
 
     @Override
@@ -48,7 +57,7 @@ public class SavePicRunnable implements Runnable {
                     e.printStackTrace();
                 }
             }
-            cameraResultCallback.getMediaData(0, mFile.getAbsolutePath());
+            cameraResultCallback.getMediaData(type, mFile.getAbsolutePath());
         }
     }
 }

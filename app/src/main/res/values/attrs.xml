@@ -3,7 +3,7 @@
 
 
 
-    <declare-styleable name="CaptureButton">
+    <declare-styleable name="Camera2ShutterBtn">
         <attr name="duration" format="integer"/>
         <attr name="backgroudcolor" format="color"/>
         <attr name="innercirclecolor" format="color"/>

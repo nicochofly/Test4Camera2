@@ -20,12 +20,13 @@ import android.content.Context;
 import android.graphics.Rect;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCharacteristics;
-import android.hardware.camera2.CaptureRequest;
 import android.os.Build;
 import android.support.annotation.RequiresApi;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.TextureView;
+
+import cho.nico.com.test.callback.CameraViewTouchCallback;
 
 /**
  * A {@link TextureView} that can be adjusted to a specified aspect ratio.
@@ -92,57 +93,59 @@ public class AutoFitTextureView extends TextureView {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        try {
-            CameraCharacteristics characteristics = callback.getCameraCharacteristics();
 
-            float maxzoom = (characteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)) * 10;
+        if (callback != null) {
+            try {
+                CameraCharacteristics characteristics = callback.getCameraCharacteristics();
 
-            Rect m = characteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
-            int action = event.getAction();
-            float current_finger_spacing;
+                float maxzoom = (characteristics.get(CameraCharacteristics.SCALER_AVAILABLE_MAX_DIGITAL_ZOOM)) * 10;
 
-            if (event.getPointerCount() > 1) {
-                // Multi touch logic
-                current_finger_spacing = getFingerSpacing(event);
-                if (finger_spacing != 0) {
-                    if (current_finger_spacing > finger_spacing && maxzoom > zoom_level) {
-                        zoom_level++;
-                    } else if (current_finger_spacing < finger_spacing && zoom_level > 1) {
-                        zoom_level--;
-                    }
-                    int minW = (int) (m.width() / maxzoom);
-                    int minH = (int) (m.height() / maxzoom);
-                    int difW = m.width() - minW;
-                    int difH = m.height() - minH;
-                    int cropW = difW / 100 * (int) zoom_level;
-                    int cropH = difH / 100 * (int) zoom_level;
-                    cropW -= cropW & 3;
-                    cropH -= cropH & 3;
-                    Rect zoom = new Rect(cropW, cropH, m.width() - cropW, m.height() - cropH);
+                Rect m = characteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
+                int action = event.getAction();
+                float current_finger_spacing;
+
+                if (event.getPointerCount() > 1) {
+                    // Multi touch logic
+                    current_finger_spacing = getFingerSpacing(event);
+                    if (finger_spacing != 0) {
+                        if (current_finger_spacing > finger_spacing && maxzoom > zoom_level) {
+                            zoom_level++;
+                        } else if (current_finger_spacing < finger_spacing && zoom_level > 1) {
+                            zoom_level--;
+                        }
+                        int minW = (int) (m.width() / maxzoom);
+                        int minH = (int) (m.height() / maxzoom);
+                        int difW = m.width() - minW;
+                        int difH = m.height() - minH;
+                        int cropW = difW / 100 * (int) zoom_level;
+                        int cropH = difH / 100 * (int) zoom_level;
+                        cropW -= cropW & 3;
+                        cropH -= cropH & 3;
+                        Rect zoom = new Rect(cropW, cropH, m.width() - cropW, m.height() - cropH);
 //                    mPreviewRequestBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoom);
 
-                    callback.setCropRegion(zoom);
+                        callback.setCropRegion(zoom);
+                    }
+                    finger_spacing = current_finger_spacing;
+                } else {
+                    if (action == MotionEvent.ACTION_UP) {
+                        //single touch logic
+                    }
                 }
-                finger_spacing = current_finger_spacing;
-            } else {
-                if (action == MotionEvent.ACTION_UP) {
-                    //single touch logic
-                }
-            }
 
-            try {
+                try {
 //                previewSession.setRepeatingRequest(mPreviewRequest,
 //                        mPreviewCaptureCallback, backgroudHandler);
-                callback.setRepeatingRequest();
+                    callback.setRepeatingRequest();
+                } catch (CameraAccessException e) {
+                    e.printStackTrace();
+                } catch (NullPointerException ex) {
+                    ex.printStackTrace();
+                }
             } catch (CameraAccessException e) {
-                e.printStackTrace();
-            } catch (NullPointerException ex) {
-                ex.printStackTrace();
+                throw new RuntimeException("can not access camera.", e);
             }
-        } catch (CameraAccessException e) {
-            throw new RuntimeException("can not access camera.", e);
         }
-
         return true;
     }
 

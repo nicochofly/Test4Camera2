@@ -23,11 +23,12 @@ import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
 import android.media.MediaRecorder;
-import android.os.Environment;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.support.annotation.NonNull;
 import android.support.annotation.RequiresApi;
+import android.support.constraint.ConstraintLayout;
 import android.text.TextUtils;
 import android.util.Log;
 import android.util.Size;
@@ -37,6 +38,7 @@ import android.view.TextureView;
 import android.view.WindowManager;
 import android.widget.Toast;
 
+
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -44,11 +46,20 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
+
+import cho.nico.com.test.callback.CameraResultCallback;
+import cho.nico.com.test.callback.CameraViewTouchCallback;
+//import cn.droidlover.xdroidmvp.cache.SharedPref;
 
 import static android.os.Build.VERSION_CODES.LOLLIPOP;
 
+/**
+ * 相机类
+ * 适配camera2sdk
+ */
 @RequiresApi(LOLLIPOP)
-public class Camera2Utils1 {
+public class Camera2Tools {
     private String TAG = getClass().getSimpleName();
 
     private Context context;
@@ -88,9 +99,8 @@ public class Camera2Utils1 {
         INVERSE_ORIENTATIONS.append(Surface.ROTATION_270, 0);
     }
 
-    public static final int MEDIA_QUALITY_MIDDLE = 16 * 100000;
+    public static final int MEDIA_QUALITY_HIGH = 30 * 100000;
 
-//    private CaptureRequest.Builder requestBuilder;
     /**
      * {@link CaptureRequest.Builder} for the camera preview
      */
@@ -165,6 +175,7 @@ public class Camera2Utils1 {
      * Camera state: Picture was taken.
      */
     private static final int STATE_PICTURE_TAKEN = 4;
+
     /**
      * The {@link android.util.Size} of video recording.
      */
@@ -172,7 +183,7 @@ public class Camera2Utils1 {
 
     private int mState;
 
-    private String basePath = Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "camera2" + File.separator;
+    private String basePath = Constants.BASE_DIR;
 
     private boolean isRecording = false;
 
@@ -182,6 +193,8 @@ public class Camera2Utils1 {
 
     private CameraViewTouchCallback cameraViewTouchCallback;
 
+
+    private boolean supportCamera = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP ? true : false;
 
     private static final int COLOR_FormatI420 = 1;
     private static final int COLOR_FormatNV21 = 2;
@@ -231,6 +244,9 @@ public class Camera2Utils1 {
                         } else {
                             runPrecaptureSequence();
                         }
+                    } else {
+                        mState = STATE_PICTURE_TAKEN;
+                        captureStillPicture();
                     }
                     break;
                 }
@@ -238,9 +254,11 @@ public class Camera2Utils1 {
                     Log.e(TAG, "STATE_WAITING_PRECAPTURE");
                     // CONTROL_AE_STATE can be null on some devices
                     Integer aeState = result.get(CaptureResult.CONTROL_AE_STATE);
+                    Log.e(TAG, "aeState " + aeState);
+//                    aeState == CaptureResult.CONTROL_AE_STATE_INACTIVE
                     if (aeState == null ||
                             aeState == CaptureResult.CONTROL_AE_STATE_PRECAPTURE ||
-                            aeState == CaptureRequest.CONTROL_AE_STATE_FLASH_REQUIRED) {
+                            aeState == CaptureRequest.CONTROL_AE_STATE_FLASH_REQUIRED || aeState == CaptureResult.CONTROL_AE_STATE_INACTIVE) {
                         mState = STATE_WAITING_NON_PRECAPTURE;
                     }
                     break;
@@ -249,7 +267,8 @@ public class Camera2Utils1 {
                     Log.e(TAG, "STATE_WAITING_NON_PRECAPTURE");
                     // CONTROL_AE_STATE can be null on some devices
                     Integer aeState = result.get(CaptureResult.CONTROL_AE_STATE);
-                    if (aeState == null || aeState != CaptureResult.CONTROL_AE_STATE_PRECAPTURE) {
+                    Log.e(TAG, "aeState " + aeState);
+                    if (aeState == null || aeState != CaptureResult.CONTROL_AE_STATE_PRECAPTURE || aeState == CaptureResult.CONTROL_AE_STATE_INACTIVE) {
                         mState = STATE_PICTURE_TAKEN;
                         captureStillPicture();
                     }
@@ -262,7 +281,7 @@ public class Camera2Utils1 {
         public void onCaptureProgressed(@NonNull CameraCaptureSession session,
                                         @NonNull CaptureRequest request,
                                         @NonNull CaptureResult partialResult) {
-            Log.e(TAG, "onCaptureProgressed");
+//            Log.e(TAG, "onCaptureProgressed");
             process(partialResult);
         }
 
@@ -277,7 +296,7 @@ public class Camera2Utils1 {
         @Override
         public void onCaptureFailed(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull CaptureFailure failure) {
             super.onCaptureFailed(session, request, failure);
-            Log.e(TAG, "onCaptureFailed");
+//            Log.e(TAG, "onCaptureFailed");
         }
 
     };
@@ -286,9 +305,16 @@ public class Camera2Utils1 {
     private ImageReader.OnImageAvailableListener jpegImageLister = new ImageReader.OnImageAvailableListener() {
         @Override
         public void onImageAvailable(ImageReader reader) {
-            File file = new File(basePath + System.currentTimeMillis() + ".jpg");
+            File dir = new File(Constants.SAVE_PIC_PATH );
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+
+            File file = new File(Constants.SAVE_PIC_PATH + System.currentTimeMillis() + Constants.PICTURE_IMG_SUFFIX);
+
             Image image = reader.acquireLatestImage();
-            new Thread(new SavePicRunnable(image, file, cameraResultCallback)).start();
+
+            new Thread(new SavePicRunnable(image, file, 0, cameraResultCallback)).start();
         }
     };
 
@@ -297,7 +323,6 @@ public class Camera2Utils1 {
         public void onOpened(@NonNull CameraDevice camera) {
 
             cameraDevice = camera;
-//            startPreview();
             try {
                 createCameraPreviewSession();
 
@@ -317,7 +342,6 @@ public class Camera2Utils1 {
 
         @Override
         public void onError(@NonNull CameraDevice camera, int error) {
-//            mCameraOpenCloseLock.release();
             camera.close();
             cameraDevice = null;
 
@@ -383,19 +407,6 @@ public class Camera2Utils1 {
     };
 
 
-//    private CameraCaptureSession.CaptureCallback captureCallback = new CameraCaptureSession.CaptureCallback() {
-//        @Override
-//        public void onCaptureStarted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, long timestamp, long frameNumber) {
-//            super.onCaptureStarted(session, request, timestamp, frameNumber);
-//        }
-//
-//        @Override
-//        public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
-//            super.onCaptureCompleted(session, request, result);
-//        }
-//    };
-
-
     /**
      * {@link TextureView.SurfaceTextureListener} handles several lifecycle events on a
      * {@link TextureView}.
@@ -426,42 +437,40 @@ public class Camera2Utils1 {
 
     };
 
-    private static Camera2Utils1 camera2Utils;
+    private static Camera2Tools camera2Utils;
 
-    private Camera2Utils1() {
+    private Camera2Tools() {
 
     }
 
     static {
-        camera2Utils = new Camera2Utils1();
+        camera2Utils = new Camera2Tools();
     }
 
 
-    public static Camera2Utils1 getInstance() {
+    public static Camera2Tools getInstance() {
         return camera2Utils;
     }
 
 
     public void init(Context ctx, AutoFitTextureView textureview) throws CameraAccessException {
 
-        this.context = ctx;
-        this.textureView = textureview;
-
-
-        startBackThread();
-        windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
-        cameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
-        rotation = windowManager.getDefaultDisplay().getRotation();
-        mediaRecorder = new MediaRecorder();
-        String[] cameraidList = cameraManager.getCameraIdList();
-        if (cameraidList.length == 1) {
-            cameraId = cameraidList[0];
-        } else if (cameraidList.length == 2) {
-            cameraId = cameraidList[0];
-        } else {
-            return;
+        if (supportCamera) {
+            this.context = ctx;
+            this.textureView = textureview;
+            windowManager = (WindowManager) context.getSystemService(Context.WINDOW_SERVICE);
+            cameraManager = (CameraManager) context.getSystemService(Context.CAMERA_SERVICE);
+            rotation = windowManager.getDefaultDisplay().getRotation();
+            mediaRecorder = new MediaRecorder();
+            String[] cameraidList = cameraManager.getCameraIdList();
+            if (cameraidList.length == 1) {
+                cameraId = cameraidList[0];
+            } else if (cameraidList.length == 2) {
+                cameraId = cameraidList[0];
+            } else {
+                return;
+            }
         }
-
     }
 
 
@@ -511,24 +520,13 @@ public class Camera2Utils1 {
     }
 
 
-//    private void setupPreview() {
-//        nv21Reader = ImageReader.newInstance(mPreviewSize.getWidth(), mPreviewSize.getHeight(), ImageFormat.YUV_420_888, 10);
-//        nv21Reader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
-//            @Override
-//            public void onImageAvailable(ImageReader reader) {
-//
-//                Image img = reader.acquireLatestImage();
-//                img.close();
-//            }
-//        }, backgroudHandler);
-//
-//    }
-
-
     private void startBackThread() {
-        backgroudThread = new HandlerThread(getClass().getSimpleName());
-        backgroudThread.start();
-        backgroudHandler = new Handler(backgroudThread.getLooper());
+
+        if (supportCamera) {
+            backgroudThread = new HandlerThread(getClass().getSimpleName());
+            backgroudThread.start();
+            backgroudHandler = new Handler(backgroudThread.getLooper());
+        }
     }
 
 
@@ -548,11 +546,9 @@ public class Camera2Utils1 {
     @SuppressLint("MissingPermission")
     private void openCamera(int width, int height) {
         try {
+            startBackThread();
             setUpCameraOutputs(width, height);
             configureTransform(width, height);
-            Log.e(TAG, "cameraId " + cameraId + "   " + Thread.currentThread().getId());
-
-            Log.e("thread", " openCamera  " + Thread.currentThread().getId());
             cameraManager.openCamera(cameraId, deviceCallback, backgroudHandler);
         } catch (CameraAccessException e) {
             e.printStackTrace();
@@ -562,45 +558,6 @@ public class Camera2Utils1 {
 
     }
 
-
-    /**
-     * Start the camera preview.
-     */
-//    private void startPreview() {
-//        if (null == cameraDevice || !textureView.isAvailable() || null == mPreviewSize) {
-//            return;
-//        }
-////        closePreviewSession();
-//        try {
-//            SurfaceTexture texture = textureView.getSurfaceTexture();
-//            assert texture != null;
-//            texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
-//            mPreviewRequestBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
-//
-//            setUpPreviewReader();//预览
-//
-//            Surface previewSurface = new Surface(texture);
-//            Surface nv21Surface = nv21Reader.getSurface();
-//
-//            mPreviewRequestBuilder.addTarget(previewSurface);
-//            mPreviewRequestBuilder.addTarget(nv21Surface);
-//            cameraDevice.createCaptureSession(Arrays.asList(previewSurface, nv21Surface),
-//                    new CameraCaptureSession.StateCallback() {
-//
-//                        @Override
-//                        public void onConfigured(@NonNull CameraCaptureSession session) {
-//                            previewSession = session;
-////                            updatePreview();
-//                        }
-//
-//                        @Override
-//                        public void onConfigureFailed(@NonNull CameraCaptureSession session) {
-//                        }
-//                    }, backgroudHandler);
-//        } catch (CameraAccessException e) {
-//            e.printStackTrace();
-//        }
-//    }
 
     /**
      * Configures the necessary {@link android.graphics.Matrix} transformation to `mTextureView`.
@@ -705,16 +662,19 @@ public class Camera2Utils1 {
      * @throws CameraAccessException
      */
     public void flip() throws CameraAccessException {
-        String[] cameraidList = cameraManager.getCameraIdList();
-        if (cameraidList.length == 2) {
-            cameraId = TextUtils.equals(cameraId, "0") ? "1" : "0";
-        } else {
-            return;
+
+        if (supportCamera) {
+            String[] cameraidList = cameraManager.getCameraIdList();
+            if (cameraidList.length == 2) {
+                cameraId = TextUtils.equals(cameraId, "0") ? "1" : "0";
+            } else {
+                return;
+            }
+//        previewSession.abortCaptures();
+//        previewSession.stopRepeating();
+            cameraDevice.close();
+            openCamera(textureView.getWidth(), textureView.getHeight());
         }
-        previewSession.abortCaptures();
-        previewSession.stopRepeating();
-        cameraDevice.close();
-        openCamera(textureView.getWidth(), textureView.getHeight());
     }
 
 
@@ -733,48 +693,78 @@ public class Camera2Utils1 {
     }
 
 
-    /**
-     * get the suitable size for screen
-     *
-     * @param choices
-     * @param width
-     * @param height
-     * @return
-     */
     private Size getPreviewSize(Size[] choices, int width, int height) {
-        Size result = null;
-        List<Size> bigEnough = new ArrayList<>();
-        for (Size size : choices) {
-//            Log.e(TAG, "supportsize = " + size.getWidth() + "*" + size.getHeight());
-            if (size.getWidth() == size.getHeight() * width / height && size.getWidth() >= width && size.getHeight() >= height) {
-                bigEnough.add(size);
+
+        List<Size> sameratios = new ArrayList<>();
+        List<Size> unequalratios = new ArrayList<>();
+
+        for (Size s : choices) {
+
+            if (s.getWidth() * 1.00d / width == s.getHeight() * 1.00d / height) {
+                sameratios.add(s);
             }
         }
 
-        double viewratio = height * 1.00d / width;
+        if (!sameratios.isEmpty()) {
+            return Collections.max(sameratios, new CompareSizesByArea());
+        } else {
+            double viewratio = width * 1.00d / height;
 
-        if (bigEnough.isEmpty()) {
-            for (Size size : choices) {
-                if (height > width) {
-                    double current = Math.abs(size.getWidth() * 1.00d / size.getHeight() - viewratio);
-                    if (size.getHeight() > 500 && current <= ratio) {
-                        result = size;
-                        ratio = current;
-                    }
-                } else {
+            double suitratio = 0.00d;
+
+            for (Size s : choices) {
+                double sratio = s.getWidth() * 1.00d / s.getHeight();
+                double current = Math.abs(sratio - viewratio);
+                if (s.getHeight() > 500 && current <= ratio) {
+                    suitratio = sratio;
                 }
-
-
             }
+
+
+            for (Size s : choices) {
+                double sratio = s.getWidth() * 1.00d / s.getHeight();
+                if (sratio == suitratio) {
+                    unequalratios.add(s);
+                }
+            }
+            if (!unequalratios.isEmpty()) {
+                return Collections.max(unequalratios, new CompareSizesByArea());
+            }
+
+        }
+
+        return null;
+
+    }
+
+
+    private void updateViewLayoutParams(Size size) {
+
+        int viewWidth = textureView.getWidth();
+        int viewHeight = textureView.getHeight();
+
+
+        double viewRatio = viewWidth * 1.00d / viewHeight;
+        double sizeRatio = size.getHeight() * 1.00d / size.getWidth();
+
+        ConstraintLayout.LayoutParams layoutParams = (ConstraintLayout.LayoutParams) textureView.getLayoutParams();
+        layoutParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID;
+        layoutParams.topToTop = ConstraintLayout.LayoutParams.PARENT_ID;
+        layoutParams.leftToLeft = ConstraintLayout.LayoutParams.PARENT_ID;
+        layoutParams.rightToRight = ConstraintLayout.LayoutParams.PARENT_ID;
+
+        if (viewRatio < sizeRatio) {
+
+            layoutParams.height = viewHeight;
+            int width = (int) (viewHeight * 1.00d * size.getHeight() / size.getWidth());
+            layoutParams.width = width;
 
         } else {
-
-            result = Collections.max(bigEnough, new CompareSizesByArea());
+            layoutParams.width = viewWidth;
+            int height = (int) (viewWidth * 1.00d * size.getWidth() / size.getHeight());
+            layoutParams.height = height;
         }
-
-        Log.e(TAG, "result " + result.getWidth() + "*" + result.getHeight());
-
-        return result;
+        textureView.setLayoutParams(layoutParams);
     }
 
 
@@ -804,7 +794,6 @@ public class Camera2Utils1 {
                     ImageFormat.JPEG, /*maxImages*/1);
             jpegReader.setOnImageAvailableListener(
                     jpegImageLister, backgroudHandler);
-
 
             // Find out if we need to swap dimension to get the preview size relative to sensor
             // coordinate.
@@ -855,12 +844,9 @@ public class Camera2Utils1 {
             // bus' bandwidth limitation, resulting in gorgeous previews but the storage of
             // garbage capture data.
             mPreviewSize = getPreviewSize(map.getOutputSizes(SurfaceTexture.class),
-                    rotatedPreviewHeight, rotatedPreviewWidth/*, maxPreviewWidth,
-                        maxPreviewHeight, largest*/);
-            videoSize = mPreviewSize;
+                    rotatedPreviewWidth, rotatedPreviewHeight);
+            videoSize = getPreviewSize(map.getOutputSizes(MediaRecorder.class), rotatedPreviewWidth, rotatedPreviewHeight);
 
-            Log.e(TAG, "previewSize  " + mPreviewSize);
-            Log.e(TAG, "videoSize  " + videoSize);
 
             // We fit the aspect ratio of TextureView to the size of preview we picked.
             int orientation = context.getResources().getConfiguration().orientation;
@@ -868,8 +854,7 @@ public class Camera2Utils1 {
                 textureView.setAspectRatio(
                         mPreviewSize.getWidth(), mPreviewSize.getHeight());
             } else {
-                textureView.setAspectRatio(
-                        mPreviewSize.getHeight(), mPreviewSize.getWidth());
+                updateViewLayoutParams(mPreviewSize);
             }
 
             // Check if the flash is supported.
@@ -896,12 +881,14 @@ public class Camera2Utils1 {
      * Initiate a still image capture.
      */
     public void takePicture() {
-        File dir = new File(basePath);
-        if (!dir.exists()) {
-            dir.mkdirs();
+        if (supportCamera) {
+            File dir = new File(basePath);
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+            Log.e(TAG, "takePicture");
+            lockFocus();
         }
-        Log.e(TAG, "takePicture");
-        lockFocus();
     }
 
     /**
@@ -952,64 +939,65 @@ public class Camera2Utils1 {
      * start record video
      */
     public void startRecord() {
-        Log.e("thread", " startRecord  " + Thread.currentThread().getId());
-        if (null == cameraDevice || !textureView.isAvailable() || null == mPreviewSize) {
-            return;
-        }
-        try {
-            closePreviewSession();
-            setUpMediaRecorder();
-            setUpPreviewReader();
-            SurfaceTexture texture = textureView.getSurfaceTexture();
-            assert texture != null;
-            texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
-            final CaptureRequest.Builder recordBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
-            List<Surface> surfaces = new ArrayList<>();
-
-            // Set up Surface for the camera preview
-            Surface previewSurface = new Surface(texture);
-            surfaces.add(previewSurface);
-            recordBuilder.addTarget(previewSurface);
-
-
-            surfaces.add(nv21Reader.getSurface());
-            recordBuilder.addTarget(nv21Reader.getSurface());
-
-            // Set up Surface for the MediaRecorder
-            Surface recorderSurface = mediaRecorder.getSurface();
-            recordBuilder.addTarget(recorderSurface);
-            surfaces.add(recorderSurface);
-
-            Rect zoomRect = mPreviewRequestBuilder.get(CaptureRequest.SCALER_CROP_REGION);
-
-
-            if (zoomRect != null) {
-                recordBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoomRect);
+        if (supportCamera) {
+            clearCurrentVideoPath();
+            if (null == cameraDevice || !textureView.isAvailable() || null == mPreviewSize) {
+                return;
             }
+            try {
+                closePreviewSession();
+                setUpMediaRecorder();
+                setUpPreviewReader();
+                SurfaceTexture texture = textureView.getSurfaceTexture();
+                assert texture != null;
+                texture.setDefaultBufferSize(videoSize.getWidth(), videoSize.getHeight());
+                final CaptureRequest.Builder recordBuilder = cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
+                List<Surface> surfaces = new ArrayList<>();
 
-            // Start a capture session
-            // Once the session starts, we can update the UI and start recording
-            cameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
+                // Set up Surface for the camera preview
+                Surface previewSurface = new Surface(texture);
+                surfaces.add(previewSurface);
+                recordBuilder.addTarget(previewSurface);
 
-                @Override
-                public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
-                    previewSession = cameraCaptureSession;
-                    updatePreview(recordBuilder);
-                    mediaRecorder.start();
-                    isRecording = true;
+
+                surfaces.add(nv21Reader.getSurface());
+                recordBuilder.addTarget(nv21Reader.getSurface());
+
+                // Set up Surface for the MediaRecorder
+                Surface recorderSurface = mediaRecorder.getSurface();
+                recordBuilder.addTarget(recorderSurface);
+                surfaces.add(recorderSurface);
+
+                Rect zoomRect = mPreviewRequestBuilder.get(CaptureRequest.SCALER_CROP_REGION);
+
+
+                if (zoomRect != null) {
+                    recordBuilder.set(CaptureRequest.SCALER_CROP_REGION, zoomRect);
                 }
 
-                @Override
-                public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
-                    if (null != context) {
-                        Toast.makeText(context, "Failed", Toast.LENGTH_SHORT).show();
+                // Start a capture session
+                // Once the session starts, we can update the UI and start recording
+                cameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
+
+                    @Override
+                    public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
+                        previewSession = cameraCaptureSession;
+                        updatePreview(recordBuilder);
+                        mediaRecorder.start();
+                        isRecording = true;
                     }
-                }
-            }, backgroudHandler);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
 
+                    @Override
+                    public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
+                        if (null != context) {
+                            Toast.makeText(context, "Failed", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                }, backgroudHandler);
+            } catch (CameraAccessException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     /**
@@ -1020,32 +1008,47 @@ public class Camera2Utils1 {
      * false delete the short video and restart preview
      */
     public void stopRecord(boolean save) {
-        try {
-            isRecording = false;
-            mediaRecorder.stop();
-            mediaRecorder.reset();
-            mediaRecorder.release();
-        } catch (Exception e) {
-            e.printStackTrace();
-        } finally {
-            mediaRecorder = null;
-        }
-        closePreviewSession();
-        try {
-            cameraDevice.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        if (save) {
-            cameraResultCallback.getMediaData(1, currentVideoPath);
-        } else {
-            File file = new File(currentVideoPath);
-            if (file.exists()) {
-                file.delete();
+
+        if (supportCamera) {
+            try {
+                isRecording = false;
+                if (mediaRecorder != null) {
+                    mediaRecorder.stop();
+                    mediaRecorder.reset();
+                    mediaRecorder.release();
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                mediaRecorder = null;
             }
-            openCamera(textureView.getWidth(), textureView.getHeight());
+
+            if (save) {
+                cameraResultCallback.getVideoData(getCurrentVideoPath());
+            } else {
+                File file = new File(currentVideoPath);
+                if (file.exists()) {
+                    file.delete();
+                }
+
+                try {
+                    if (previewSession != null) {
+                        previewSession.stopRepeating();
+                        previewSession.abortCaptures();
+                        previewSession.close();
+                        previewSession = null;
+                    }
+                    createCameraPreviewSession();
+//                    cameraDevice.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                clearCurrentVideoPath();
+//                openCamera(textureView.getWidth(), textureView.getHeight());
+
+            }
         }
-        currentVideoPath = null;
+
 
     }
 
@@ -1101,8 +1104,6 @@ public class Camera2Utils1 {
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session,
                                                @NonNull CaptureRequest request,
                                                @NonNull TotalCaptureResult result) {
-//                    showToast("Saved: " + mFile);
-//                    Log.d(TAG, mFile.toString());
                     unlockFocus();
                 }
             };
@@ -1147,30 +1148,30 @@ public class Camera2Utils1 {
      * init mediarecorder
      */
     private void setUpMediaRecorder() {
-
-
-        Log.e(TAG, "mediaRecorder==null " + (mediaRecorder == null));
         try {
-
             if (mediaRecorder == null) {
                 mediaRecorder = new MediaRecorder();
             }
             mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
             mediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
             mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-            String currentVideoName = "video_" + System.currentTimeMillis();
-            String videoFileName = currentVideoName + ".mp4";
+            String currentVideoName = String.valueOf(UUID.randomUUID());
+            String videoFileName = currentVideoName + Constants.VIDEO_IMG_SUFFIX;
 
-            File file = new File(basePath);
+            File file = new File(Constants.SAVE_VIDEO_DIR);
             if (!file.exists()) {
                 file.mkdirs();
             }
-            currentVideoPath = basePath + File.separator + videoFileName;
+            currentVideoPath = Constants.SAVE_VIDEO_DIR + File.separator + videoFileName;
 
             File targetFile = new File(currentVideoPath);
-            mediaRecorder.setOutputFile(targetFile.getPath());
-            mediaRecorder.setVideoEncodingBitRate(MEDIA_QUALITY_MIDDLE);
+
+            Log.e(TAG, targetFile.getAbsolutePath());
+            mediaRecorder.setOutputFile(targetFile.getAbsolutePath());
+            mediaRecorder.setVideoEncodingBitRate(MEDIA_QUALITY_HIGH);
             mediaRecorder.setVideoFrameRate(30);
+
+
             mediaRecorder.setVideoSize(videoSize.getWidth(), videoSize.getHeight());
             mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
             mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
@@ -1191,7 +1192,7 @@ public class Camera2Utils1 {
 
 
     private void setUpPreviewReader() {
-        nv21Reader = ImageReader.newInstance(mPreviewSize.getWidth(), mPreviewSize.getHeight(), ImageFormat.YUV_420_888, 10);
+        nv21Reader = ImageReader.newInstance(mPreviewSize.getWidth(), mPreviewSize.getHeight(), ImageFormat.YUV_420_888, 2);
         nv21Reader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
             @Override
             public void onImageAvailable(ImageReader reader) {
@@ -1199,16 +1200,17 @@ public class Camera2Utils1 {
                 if (image == null) {
                     return;
                 }
-                if (isRecording) {
-                    Log.e(TAG, "########onPreviewCallback  " + (cameraResultCallback != null));
-                    if (cameraResultCallback != null) {
-                        cameraResultCallback.getNv21Data(getDataFromImage(image, COLOR_FormatNV21), image.getWidth(), image.getHeight());
-                    }
-                }
+
+//                currentFrame += 1;
+//                if (isRecording) {
+//                    if (cameraResultCallback != null && currentFrame % skipFrame == 0) {
+////                        Log.e(TAG, "currentFrame==" + currentFrame);
+//                        cameraResultCallback.getNv21Data(getDataFromImage(image, COLOR_FormatNV21)/*YUV_420_888toNV(image, false)*/, groupPhoto.getUuid(), image.getWidth(), image.getHeight());
+//                    }
+//                }
                 if (image != null) {
                     image.close();
                 }
-
             }
         }, null);
 
@@ -1218,11 +1220,9 @@ public class Camera2Utils1 {
 
     private void closePreviewSession() {
         try {
-            Log.e(TAG, "closePreviewSession ");
             if (previewSession != null) {
-                previewSession.abortCaptures();
-                previewSession.stopRepeating();
-                Log.e(TAG, "mPreviewSession != null ");
+//                previewSession.stopRepeating();
+//                previewSession.abortCaptures();
                 previewSession.close();
                 previewSession = null;
             }
@@ -1233,38 +1233,46 @@ public class Camera2Utils1 {
 
 
     public void stop() {
-        try {
-            if (mediaRecorder != null) {
-                mediaRecorder.stop();
-                mediaRecorder.reset();
-                mediaRecorder.release();
-            }
-            closePreviewSession();
-            cameraDevice.close();
+        if (supportCamera) {
+            try {
+                if (isRecording) {
+                    if (mediaRecorder != null) {
+                        mediaRecorder.stop();
+                        mediaRecorder.reset();
+                        mediaRecorder.release();
+                    }
+                }
+                closePreviewSession();
 
-            if (nv21Reader != null) {
-                nv21Reader.close();
-                nv21Reader = null;
-            }
-            if (jpegReader != null) {
-                jpegReader.close();
-                jpegReader = null;
-            }
+                cameraDevice.close();
 
-            stopBackThread();
-        } catch (Exception e) {
-            e.printStackTrace();
+                if (nv21Reader != null) {
+                    nv21Reader.close();
+                    nv21Reader = null;
+                }
+                if (jpegReader != null) {
+                    jpegReader.close();
+                    jpegReader = null;
+                }
+
+                stopBackThread();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         }
     }
 
     public void resume(CameraResultCallback resultCallback) {
-        if (textureView.isAvailable()) {
-            Log.e(TAG, "isAvailable");
-            openCamera(textureView.getWidth(), textureView.getHeight());
-        } else {
-            textureView.setSurfaceTextureListener(mSurfaceTextureListener);
+
+        if (supportCamera) {
+            if (textureView.isAvailable()) {
+                Log.e(TAG, "isAvailable");
+                openCamera(textureView.getWidth(), textureView.getHeight());
+            } else {
+                textureView.setSurfaceTextureListener(mSurfaceTextureListener);
+            }
+            this.cameraResultCallback = resultCallback;
         }
-        this.cameraResultCallback = resultCallback;
     }
 
 
@@ -1276,6 +1284,8 @@ public class Camera2Utils1 {
      * @return
      */
     private byte[] getDataFromImage(Image image, int colorFormat) {
+
+        long startTime = System.currentTimeMillis();
         if (colorFormat != COLOR_FormatI420 && colorFormat != COLOR_FormatNV21) {
             throw new IllegalArgumentException("only support COLOR_FormatI420 " + "and COLOR_FormatNV21");
         }
@@ -1290,7 +1300,7 @@ public class Camera2Utils1 {
         byte[] data = new byte[width * height * ImageFormat.getBitsPerPixel(format) / 8];
         byte[] rowData = new byte[planes[0].getRowStride()];
 //        if (VERBOSE)
-        Log.v(TAG, "get data from " + planes.length + " planes");
+//        Log.v(TAG, "get data from " + planes.length + " planes");
         int channelOffset = 0;
         int outputStride = 1;
         for (int i = 0; i < planes.length; i++) {
@@ -1321,13 +1331,6 @@ public class Camera2Utils1 {
             ByteBuffer buffer = planes[i].getBuffer();
             int rowStride = planes[i].getRowStride();
             int pixelStride = planes[i].getPixelStride();
-//            if (VERBOSE) {
-            Log.v("c", "pixelStride " + pixelStride);
-            Log.v(TAG, "rowStride " + rowStride);
-            Log.v(TAG, "width " + width);
-            Log.v(TAG, "height " + height);
-            Log.v(TAG, "buffer size " + buffer.remaining());
-//            }
             int shift = (i == 0) ? 0 : 1;
             int w = width >> shift;
             int h = height >> shift;
@@ -1351,12 +1354,55 @@ public class Camera2Utils1 {
                 }
             }
 //            if (VERBOSE)
-            Log.v(TAG, "Finished reading data from plane " + i);
+//            Log.v(TAG, "Finished reading data from plane " + i);
         }
+
+        Log.e("caodongquan", "提取耗时 " + (System.currentTimeMillis() - startTime));
         return data;
     }
 
+    /**
+     * 获取当前录制视频存储地址
+     *
+     * @return
+     */
     public String getCurrentVideoPath() {
         return currentVideoPath;
+    }
+
+
+    public void clearCurrentVideoPath() {
+        currentVideoPath = null;
+    }
+
+
+    public byte[] YUV_420_888toNV(Image image, boolean nv12) {
+
+        long startTime = System.currentTimeMillis();
+        byte[] nv;
+
+        ByteBuffer yBuffer = image.getPlanes()[0].getBuffer();
+        ByteBuffer uBuffer = image.getPlanes()[1].getBuffer();
+        ByteBuffer vBuffer = image.getPlanes()[2].getBuffer();
+        int ySize = yBuffer.remaining();
+        int uSize = uBuffer.remaining();
+        int vSize = vBuffer.remaining();
+
+        nv = new byte[ySize + uSize + vSize];
+
+        yBuffer.get(nv, 0, ySize);
+        if (nv12) {//U and V are swapped
+            vBuffer.get(nv, ySize, vSize);
+            uBuffer.get(nv, ySize + vSize, uSize);
+        } else {
+            uBuffer.get(nv, ySize, uSize);
+            vBuffer.get(nv, ySize + uSize, vSize);
+        }
+        return nv;
+    }
+
+
+    public String getCurrentCameraId() {
+        return cameraId;
     }
 }

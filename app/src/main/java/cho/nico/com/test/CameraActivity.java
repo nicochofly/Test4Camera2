@@ -9,31 +9,16 @@ import android.os.Process;
 import android.support.annotation.NonNull;
 import android.support.annotation.RequiresApi;
 import android.support.v4.app.FragmentActivity;
-import android.util.Log;
-
-import com.arcsoft.face.FaceEngine;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class CameraActivity extends FragmentActivity  {
 
-    private FaceEngine faceEngine;
 
 
     private final String TAG = getClass().getSimpleName();
 
-    public static final String APP_ID = "6F8VPaapjic6BkoU2dbrfp1WKwdCjokFNqyFLAYFMRfi";
-    public static final String SDK_KEY = "G2owqnL7C3CggWpTVGWQmw6b2JoMnB98DK5kkyibufwR";
-
-    /**
-     * 初始化引擎
-     */
-    private void initEngine() {
-        faceEngine = new FaceEngine();
-       int code = faceEngine.active(this, APP_ID, SDK_KEY);
-        Log.e("caodongquan","code ==" +code);
-    }
 
     private String[] permissonArray = new String[]
             {
@@ -48,17 +33,8 @@ public class CameraActivity extends FragmentActivity  {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         setContentView(R.layout.activity_camera);
-
-        initEngine();
-
         startrequestPermission();
-
-
-//        surfaceView = findViewById(R.id.camera_sv);
-//
-//        surfaceHolder = surfaceView.getHolder();
     }
 
 
@@ -74,8 +50,7 @@ public class CameraActivity extends FragmentActivity  {
                 requestPermissions(mRequestPermission.toArray(new String[mRequestPermission.size()]), ACTION_REQUEST_PERMISSIONS);
             } else {
                 try {
-//                    initView();
-                    getSupportFragmentManager().beginTransaction().add(R.id.fl_layout, CameraFragment.newInstance()).commitAllowingStateLoss();
+                    getSupportFragmentManager().beginTransaction().add(R.id.fl_layout, Camera2Fragment.newInstance()).commitAllowingStateLoss();
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -83,7 +58,7 @@ public class CameraActivity extends FragmentActivity  {
         } else {
             try {
 //                initView();
-                getSupportFragmentManager().beginTransaction().add(R.id.fl_layout, CameraFragment.newInstance()).commitAllowingStateLoss();
+                getSupportFragmentManager().beginTransaction().add(R.id.fl_layout, Camera2Fragment.newInstance()).commitAllowingStateLoss();
             } catch (Exception e) {
                 e.printStackTrace();
             }
