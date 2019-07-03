@@ -78,7 +78,6 @@ public class Camera2Fragment extends Fragment implements CameraOprCallback, Came
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_camera2, container, false);
         unbinder = ButterKnife.bind(this, rootView);
-        rootView.setTag(0);
         return rootView;
     }
 
@@ -92,6 +91,7 @@ public class Camera2Fragment extends Fragment implements CameraOprCallback, Came
     public void onViewClicked(View view) {
         switch (view.getId()) {
             case R.id.close_iv:
+                getActivity().finish();
                 break;
             case R.id.flip_iv:
                 try {

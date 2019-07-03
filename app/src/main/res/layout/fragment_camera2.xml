@@ -35,10 +35,9 @@
 
         <ImageView
             android:id="@+id/flip_iv"
-            android:layout_width="80dp"
-            android:layout_height="80dp"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
             android:layout_marginTop="20dp"
-            android:layout_marginRight="20dp"
             android:scaleType="center"
             android:src="@mipmap/flip"
             app:layout_constraintRight_toRightOf="parent"
