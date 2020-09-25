@@ -463,12 +463,13 @@ public class Camera2Tools {
             rotation = windowManager.getDefaultDisplay().getRotation();
             mediaRecorder = new MediaRecorder();
             String[] cameraidList = cameraManager.getCameraIdList();
-            if (cameraidList.length == 1) {
-                cameraId = cameraidList[0];
-            } else if (cameraidList.length == 2) {
-                cameraId = cameraidList[0];
-            } else {
+            if(cameraidList.length==0)
+            {
                 return;
+            }
+            else
+            {
+                cameraId = cameraidList[0];
             }
         }
     }
@@ -777,6 +778,8 @@ public class Camera2Tools {
     @SuppressWarnings("SuspiciousNameCombination")
     private void setUpCameraOutputs(int width, int height) {
         try {
+
+            Log.e("cdq","cameraId  == "+cameraId);
             CameraCharacteristics characteristics
                     = cameraManager.getCameraCharacteristics(cameraId);
 
